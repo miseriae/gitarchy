@@ -2,6 +2,8 @@
 
 Git status for watched repos in the Omarchy bar: dirty counts, branches, stash, ahead/behind, and lazygit.
 
+![Gitarchy preview](preview.png)
+
 ## Features
 
 - Branch name + total dirty count in the bar
