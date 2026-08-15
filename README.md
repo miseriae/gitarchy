@@ -72,6 +72,7 @@ Or edit the layout entry directly:
 | `pollInterval` | int | 30 | Seconds between git status refreshes. |
 | `showBranch` | bool | `true` | Show the primary branch in the bar. |
 | `showDirty` | bool | `true` | Show the total dirty count in the bar. |
+| `lazyGitMode` | enum | `focus` | `focus`: reuse/focus an open lazygit window. `floating`: always open a new floating terminal. |
 
 A repo entry's `name` overrides the display label; it defaults to the folder
 name.
@@ -84,6 +85,11 @@ name.
 - **Double-click** a repo row to open lazygit
 - **Right-click** the bar widget to open lazygit for the primary repo
 - **Middle-click** the bar widget to refresh now
+
+The header toggle switches how lazygit is opened — **Focus** (reuse/focus an
+open lazygit window) or **Floating** (always open a new floating terminal).
+The choice persists and is the same `lazyGitMode` setting shown in the table
+above.
 
 ## How it works
 

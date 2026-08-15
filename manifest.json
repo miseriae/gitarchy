@@ -16,7 +16,7 @@
   "barWidget": {
     "displayName": "Gitarchy",
     "description": "Git status for watched repos: dirty counts, branches, stash, ahead/behind, and lazygit.",
-    "category": "Development",
+    "category": "Developer Tools",
     "aliases": [
       "gitarchy"
     ],
@@ -26,7 +26,8 @@
       "pollInterval": 30,
       "repos": [],
       "showBranch": true,
-      "showDirty": true
+      "showDirty": true,
+      "lazyGitMode": "focus"
     },
     "schema": [
       {
@@ -49,6 +50,17 @@
         "type": "boolean",
         "label": "Show dirty count",
         "defaultValue": true
+      },
+      {
+        "key": "lazyGitMode",
+        "type": "enum",
+        "label": "Open lazygit in",
+        "options": [
+          "focus",
+          "floating"
+        ],
+        "defaultValue": "focus",
+        "description": "focus: reuse/focus an open lazygit window. floating: always open a new floating terminal."
       }
     ]
   }

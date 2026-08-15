@@ -21,10 +21,12 @@ BarWidget {
   property var statuses: []
   property string buttonText: ""
   property string buttonTooltip: "Gitarchy — no repos configured"
+  property string lastDataKey: ""
 
   readonly property bool showBranch: setting("showBranch", true) !== false
   readonly property bool showDirty: setting("showDirty", true) !== false
   readonly property int pollInterval: Math.max(5, parseInt(setting("pollInterval", 30), 10) || 30)
+  readonly property string lazyGitMode: setting("lazyGitMode", "focus")
 
   // ---- Lifecycle contract for the nested panel (Bar.findPanelWidget)
   readonly property bool opened: panelLoader.item
@@ -126,7 +128,7 @@ BarWidget {
 
   function openPrimaryLazygit() {
     var path = root.primaryRepoPath()
-    if (path !== "" && root.bar) root.bar.run(GitService.openLazygitCommand(path))
+    if (path !== "" && root.bar) root.bar.run(GitService.openLazygitCommand(path, root.lazyGitMode))
   }
 
   implicitWidth: button.implicitWidth
@@ -135,7 +137,13 @@ BarWidget {
   onBarChanged: injectPanel()
   onSettingsChanged: {
     injectPanel()
-    refresh()
+    var reposKey = JSON.stringify(normalizeRepos(setting("repos", [])))
+    var pollKey = String(setting("pollInterval", 30))
+    var dataKey = reposKey + "|" + pollKey
+    if (dataKey !== root.lastDataKey) {
+      root.lastDataKey = dataKey
+      refresh()
+    }
   }
   onStatusesChanged: {
     if (panelLoader.item && "statuses" in panelLoader.item) panelLoader.item.statuses = root.statuses

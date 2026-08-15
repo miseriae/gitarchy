@@ -20,6 +20,7 @@ Panel {
   property var statuses: []
 
   readonly property var barIdentity: hostWidget || root
+  readonly property string lazyGitMode: setting("lazyGitMode", "focus")
 
   function refresh() {
     if (root.hostWidget && typeof root.hostWidget.refresh === "function")
@@ -55,7 +56,7 @@ Panel {
 
         Item {
           width: parent.width
-          height: Math.max(headerTitle.implicitHeight, headerCount.implicitHeight, refreshBtn.height)
+          height: Math.max(headerTitle.implicitHeight, headerCount.implicitHeight, modeSwitch.height, refreshBtn.height)
 
           Text {
             id: headerTitle
@@ -70,7 +71,7 @@ Panel {
 
           Text {
             id: headerCount
-            anchors.right: refreshBtn.left
+            anchors.right: modeSwitch.left
             anchors.rightMargin: Style.space(8)
             anchors.verticalCenter: parent.verticalCenter
             text: root.repoCountLabel()
@@ -78,6 +79,23 @@ Panel {
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.caption
             elide: Text.ElideRight
+          }
+
+          ToggleSwitch {
+            id: modeSwitch
+            anchors.right: refreshBtn.left
+            anchors.rightMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+            checked: root.lazyGitMode === "floating"
+            foreground: root.barForeground
+            accent: Color.accent
+            onToggled: root.persistLazyGitMode(root.lazyGitMode === "floating" ? "focus" : "floating")
+
+            PanelToolTip {
+              visible: modeSwitch.containsMouse
+              text: root.lazyGitMode === "floating" ? "Floating window" : "Focus window"
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+            }
           }
 
           PanelActionButton {
@@ -134,9 +152,25 @@ Panel {
     return String(root.hostWidget.repos[index] || "")
   }
 
+  // Persist the lazygit launch mode to the widget's shell.json entry, the same
+  // inline-settings write the clock uses: apply locally first, push to the host
+  // widget, then let the shell rewrite the entry (which feeds settings back to
+  // every live instance of this widget)
+  function persistLazyGitMode(mode) {
+    if (mode === root.lazyGitMode) return
+    var entry = { id: root.moduleName }
+    for (var existing in root.settings) if (existing !== "id") entry[existing] = root.settings[existing]
+    entry.lazyGitMode = mode
+
+    root.settings = entry
+    if (root.hostWidget && "settings" in root.hostWidget) root.hostWidget.settings = entry
+    if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
+      root.bar.shell.updateEntryInline(root.moduleName, entry)
+  }
+
   function openLazygit(index) {
     var path = root.repoPath(index)
-    if (path !== "" && root.bar) root.bar.run(GitService.openLazygitCommand(path))
+    if (path !== "" && root.bar) root.bar.run(GitService.openLazygitCommand(path, root.lazyGitMode))
   }
 
   function fetch(index) {

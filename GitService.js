@@ -111,7 +111,12 @@ function barTooltip(statuses) {
   return lines.join("\n")
 }
 
-function openLazygitCommand(path) {
+// Command to open lazygit in a repo path from a GUI click.
+// mode "focus" (default): reuse/focus an open lazygit window (org.omarchy.lazygit).
+// mode "floating": always open a new floating terminal (org.omarchy.terminal, floated by Hyprland rules)
+function openLazygitCommand(path, mode) {
+  if (mode === "floating")
+    return "omarchy-launch-tui --app-id=org.omarchy.terminal lazygit -p " + shellQuote(path)
   return "omarchy-launch-or-focus-tui lazygit -p " + shellQuote(path)
 }
 
