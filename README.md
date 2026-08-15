@@ -1,33 +1,55 @@
 # Gitarchy
 
-Git status for watched repos in the Omarchy bar: dirty counts, branches, stash, ahead/behind, and lazygit.
+Git status for watched repos in the Omarchy bar: dirty counts, branches,
+stash, ahead/behind, and one-click access to lazygit.
 
 ![Gitarchy preview](preview.png)
 
-## Features
+## What you see
 
-- Branch name + total dirty count in the bar
-- Per-repo panel: staged/modified/untracked counts, stash, ahead/behind
-- Double-click a repo to open lazygit
-- Per-repo actions: open lazygit, fetch, copy remote URL
-- Click-to-reveal PR status (via GitHub CLI, when `gh` is installed)
+- **Bar widget** — the primary branch and the total dirty count across all
+  watched repos (`main +3`). Hidden when no repos are configured. Left-click
+  opens the panel, right-click opens lazygit for the primary repo, middle-click
+  refreshes immediately.
+- **Panel** — one row per watched repo with the branch, staged/modified/
+  untracked counts, stash count, and ahead/behind. Click a row to expand its
+  actions; double-click opens lazygit directly.
 
-## Requirements
-
-- Omarchy 4.0 (Quattro shell)
-- Git
-- [lazygit](https://github.com/jesseduffield/lazygit) (optional, for lazygit integration)
-- [GitHub CLI](https://cli.github.com/) (optional, for PR status)
+Per-repo actions: open lazygit, `git fetch`, copy the remote URL, and a
+click-to-reveal PR status line (via GitHub CLI, when `gh` is installed).
 
 ## Install
 
 ```sh
-omarchy plugin add https://github.com/miseriae/gitarchy.git --enable --section right
+omarchy plugin add https://github.com/miseriae/gitarchy --enable
 ```
+
+The widget joins the bar's right section at the next shell reload
+(`omarchy restart shell`). Remove it with:
+
+```sh
+omarchy plugin remove miseriae.gitarchy
+```
+
+## Requirements
+
+- Omarchy with a bar (Quattro / Quickshell)
+- `git` in the runtime PATH
+- Optional: `lazygit` for the "Open lazygit" actions
+- Optional: `gh` (GitHub CLI) for the PR status line
+- Optional: `wl-clipboard` (`wl-copy`) for the "Copy remote URL" action
 
 ## Configure
 
-Add the widget to your bar and set the repos to watch in `~/.config/omarchy/shell.json`:
+Watched repos live in the widget's entry in `~/.config/omarchy/shell.json`.
+Set them with `omarchy bar set`:
+
+```sh
+omarchy bar set miseriae.gitarchy repos '["/home/you/projects/a", "~/projects/b"]' --json
+omarchy bar set miseriae.gitarchy pollInterval 60
+```
+
+Or edit the layout entry directly:
 
 ```json
 {
@@ -35,38 +57,42 @@ Add the widget to your bar and set the repos to watch in `~/.config/omarchy/shel
   "bar": {
     "layout": {
       "right": [
-        { "id": "miseriae.gitarchy", "repos": ["~/projects/myproject"], "pollInterval": 30 }
+        { "id": "miseriae.gitarchy", "repos": ["~/projects/a"], "pollInterval": 30 }
       ]
     }
   }
 }
 ```
 
-### Options
+### Settings
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `pollInterval` | int | 30 | Seconds between git status refreshes |
-| `repos` | array | `[]` | Repo paths (strings) or `{ "path": ..., "name": ... }` objects |
-| `showBranch` | bool | true | Show the primary branch in the bar |
-| `showDirty` | bool | true | Show the total dirty count in the bar |
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `repos` | array | `[]` | Repo paths (strings) or `{ "path": ..., "name": ... }` objects. Paths may use `~`. |
+| `pollInterval` | int | 30 | Seconds between git status refreshes. |
+| `showBranch` | bool | `true` | Show the primary branch in the bar. |
+| `showDirty` | bool | `true` | Show the total dirty count in the bar. |
 
-### Repo Entry
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `path` | string | Path to the git repository (supports `~`) |
-| `name` | string | Display name (optional, defaults to folder name) |
+A repo entry's `name` overrides the display label; it defaults to the folder
+name.
 
 ## Usage
 
 - **Click** the bar widget to open the status panel
-- **Hover** to see per-repo tooltip
-- **Click** a repo row to expand actions
+- **Hover** the bar widget for a per-repo tooltip
+- **Click** a repo row to expand its actions
 - **Double-click** a repo row to open lazygit
 - **Right-click** the bar widget to open lazygit for the primary repo
 - **Middle-click** the bar widget to refresh now
 
+## How it works
+
+Each watched repo is polled on the configured interval. A small bash script
+runs `git status --porcelain=v1`, `git stash list`, and an upstream
+ahead/behind count, emitting a single JSON line the widget parses. Bar text is
+derived from those counts; nothing leaves the machine and no network calls are
+made (PR status is fetched on demand only, via `gh`, when you reveal it).
+
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).

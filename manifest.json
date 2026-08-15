@@ -9,6 +9,7 @@
   "kinds": [
     "bar-widget"
   ],
+  "activation": "on-demand",
   "entryPoints": {
     "barWidget": "BarWidget.qml"
   },
@@ -16,6 +17,9 @@
     "displayName": "Gitarchy",
     "description": "Git status for watched repos: dirty counts, branches, stash, ahead/behind, and lazygit.",
     "category": "Development",
+    "aliases": [
+      "gitarchy"
+    ],
     "allowMultiple": false,
     "defaultSection": "right",
     "defaults": {
