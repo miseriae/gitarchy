@@ -112,7 +112,7 @@ function barTooltip(statuses) {
 }
 
 function openLazygitCommand(path) {
-  return "omarchy-launch-floating-terminal-with-presentation lazygit -p " + shellQuote(path)
+  return "omarchy-launch-or-focus-tui lazygit -p " + shellQuote(path)
 }
 
 function openTerminalCommand(path) {
