@@ -56,7 +56,7 @@ Panel {
 
         Item {
           width: parent.width
-          height: Math.max(headerTitle.implicitHeight, headerCount.implicitHeight, modeSwitch.height, refreshBtn.height)
+          height: Math.max(headerTitle.implicitHeight, headerCount.implicitHeight, modeLabel.implicitHeight, modeSeparator.implicitHeight, modeSwitch.height, refreshBtn.height)
 
           Text {
             id: headerTitle
@@ -71,7 +71,7 @@ Panel {
 
           Text {
             id: headerCount
-            anchors.right: modeSwitch.left
+            anchors.right: modeSeparator.left
             anchors.rightMargin: Style.space(8)
             anchors.verticalCenter: parent.verticalCenter
             text: root.repoCountLabel()
@@ -79,6 +79,28 @@ Panel {
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.caption
             elide: Text.ElideRight
+          }
+
+          Text {
+            id: modeLabel
+            anchors.right: modeSwitch.left
+            anchors.rightMargin: Style.space(6)
+            anchors.verticalCenter: parent.verticalCenter
+            text: (root.lazyGitMode === "floating" ? "Floating" : "Focus")
+            color: Qt.darker(root.barForeground, 1.4)
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.pixelSize: Style.font.caption
+          }
+
+          Text {
+            id: modeSeparator
+            anchors.right: modeLabel.left
+            anchors.rightMargin: Style.space(6)
+            anchors.verticalCenter: parent.verticalCenter
+            text: "·"
+            color: Qt.darker(root.barForeground, 1.8)
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.pixelSize: Style.font.caption
           }
 
           ToggleSwitch {
