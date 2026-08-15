@@ -99,10 +99,21 @@ BarWidget {
     var length = typeof list.length === "number" ? list.length : 0
     for (var i = 0; i < length; i++) {
       var v = list[i]
-      if (typeof v === "string" && v.trim() !== "") out.push(v.trim())
-      else if (v && typeof v === "object" && v.path) out.push(String(v.path))
+      var path = ""
+      if (typeof v === "string" && v.trim() !== "") path = v.trim()
+      else if (v && typeof v === "object" && v.path) path = String(v.path).trim()
+      if (path !== "") {
+        out.push(expandHome(path.replace(/\/+$/, "")))
+      }
     }
     return out
+  }
+
+  function expandHome(path) {
+    if (path === "~") return Quickshell.env("HOME")
+    if (path.charAt(0) === "~" && path.charAt(1) === "/")
+      return Quickshell.env("HOME") + path.substring(1)
+    return path
   }
 
   function primaryRepoPath() {
@@ -161,7 +172,7 @@ BarWidget {
     }
   }
 
-  // One git status Process per watched repo. The Instantiator keeps the
+  // One git status process per watched repo. The Instantiator keeps the
   // delegate objects alive for the widget's lifetime so each process only
   // runs on refresh rather than being torn down and rebuilt every poll
   Instantiator {
