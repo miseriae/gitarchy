@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "miseriae.gitarchy",
+  "name": "Gitarchy",
+  "version": "1.0.0",
+  "author": "miseriae",
+  "license": "MIT",
+  "description": "Git status for watched repos in the Omarchy bar: dirty counts, branches, stash, ahead/behind, and lazygit.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Gitarchy",
+    "description": "Git status for watched repos: dirty counts, branches, stash, ahead/behind, and lazygit.",
+    "category": "Development",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "pollInterval": 30,
+      "repos": [],
+      "showBranch": true,
+      "showDirty": true
+    },
+    "schema": [
+      {
+        "key": "pollInterval",
+        "type": "integer",
+        "label": "Refresh interval (seconds)",
+        "min": 5,
+        "max": 3600,
+        "step": 5,
+        "defaultValue": 30
+      },
+      {
+        "key": "showBranch",
+        "type": "boolean",
+        "label": "Show branch name",
+        "defaultValue": true
+      },
+      {
+        "key": "showDirty",
+        "type": "boolean",
+        "label": "Show dirty count",
+        "defaultValue": true
+      }
+    ]
+  }
+}
