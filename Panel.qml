@@ -22,6 +22,12 @@ Panel {
   readonly property var barIdentity: hostWidget || root
   readonly property string lazyGitMode: setting("lazyGitMode", "focus")
 
+  // Stable panel foreground. barForeground swaps to a wallpaper-contrast color
+  // when the bar is transparent (it is tuned for text floating over the
+  // wallpaper); the panel card has its own opaque background, so it must use
+  // the theme foreground, matching the built-in clock/weather panels.
+  readonly property color contentForeground: bar ? bar.foreground : Color.foreground
+
   function refresh() {
     if (root.hostWidget && typeof root.hostWidget.refresh === "function")
       root.hostWidget.refresh()
@@ -63,7 +69,7 @@ Panel {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             text: "Gitarchy"
-            color: root.barForeground
+            color: root.contentForeground
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.subtitle
             font.bold: true
@@ -75,7 +81,7 @@ Panel {
             anchors.rightMargin: Style.space(8)
             anchors.verticalCenter: parent.verticalCenter
             text: root.repoCountLabel()
-            color: Qt.darker(root.barForeground, 1.4)
+            color: Qt.darker(root.contentForeground, 1.4)
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.caption
             elide: Text.ElideRight
@@ -87,7 +93,7 @@ Panel {
             anchors.rightMargin: Style.space(6)
             anchors.verticalCenter: parent.verticalCenter
             text: (root.lazyGitMode === "floating" ? "Floating" : "Focus")
-            color: Qt.darker(root.barForeground, 1.4)
+            color: Qt.darker(root.contentForeground, 1.4)
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.caption
           }
@@ -98,7 +104,7 @@ Panel {
             anchors.rightMargin: Style.space(6)
             anchors.verticalCenter: parent.verticalCenter
             text: "·"
-            color: Qt.darker(root.barForeground, 1.8)
+            color: Qt.darker(root.contentForeground, 1.8)
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.caption
           }
@@ -109,7 +115,7 @@ Panel {
             anchors.rightMargin: Style.space(8)
             anchors.verticalCenter: parent.verticalCenter
             checked: root.lazyGitMode === "floating"
-            foreground: root.barForeground
+            foreground: root.contentForeground
             accent: Color.accent
             onToggled: root.persistLazyGitMode(root.lazyGitMode === "floating" ? "focus" : "floating")
 
@@ -126,7 +132,7 @@ Panel {
             anchors.verticalCenter: parent.verticalCenter
             iconText: "󰑓"
             tooltipText: "Refresh"
-            foreground: root.barForeground
+            foreground: root.contentForeground
             fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
             onClicked: root.refresh()
           }
@@ -141,7 +147,7 @@ Panel {
 
             width: listColumn.width
             status: modelData
-            barForeground: root.barForeground
+            contentForeground: root.contentForeground
             fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
             onOpenLazygit: root.openLazygit(index)
             onFetch: root.fetch(index)
@@ -155,7 +161,7 @@ Panel {
           width: parent.width
           horizontalAlignment: Text.AlignHCenter
           text: "No repos configured"
-          color: Qt.darker(root.barForeground, 1.4)
+          color: Qt.darker(root.contentForeground, 1.4)
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.font.body
         }
@@ -170,8 +176,9 @@ Panel {
   }
 
   function repoPath(index) {
-    if (!root.hostWidget || !root.hostWidget.repos) return ""
-    return String(root.hostWidget.repos[index] || "")
+    var s = root.statuses[index]
+    if (s && s.path) return String(s.path)
+    return ""
   }
 
   // Persist the lazygit launch mode to the widget's shell.json entry, the same

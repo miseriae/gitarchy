@@ -11,9 +11,15 @@ stash, ahead/behind, and one-click access to lazygit.
   watched repos (`main +3`). Hidden when no repos are configured. Left-click
   opens the panel, right-click opens lazygit for the primary repo, middle-click
   refreshes immediately.
-- **Panel** — one row per watched repo with the branch, staged/modified/
-  untracked counts, stash count, and ahead/behind. Click a row to expand its
-  actions; double-click opens lazygit directly.
+- **Panel** — the git repo of the currently focused terminal first (marked
+  `CURRENT`, so the repo you are working in appears automatically), then one
+  row per watched repo, each with branch, staged/modified/untracked counts,
+  stash count, and ahead/behind. Click a row to expand its actions;
+  double-click opens lazygit directly.
+
+The focused-terminal repo is detected via `omarchy-cmd-terminal-cwd` and shown
+transiently — it is not added to your watched list. `CURRENT` only appears when
+the focused terminal is inside a git repository.
 
 Per-repo actions: open lazygit, `git fetch`, copy the remote URL, and a
 click-to-reveal PR status line (via GitHub CLI, when `gh` is installed).
@@ -69,7 +75,8 @@ Or edit the layout entry directly:
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `repos` | array | `[]` | Repo paths (strings) or `{ "path": ..., "name": ... }` objects. Paths may use `~`. |
-| `pollInterval` | int | 30 | Seconds between git status refreshes. |
+| `pollInterval` | int | 30 | Seconds between git status refreshes for watched repos. |
+| `currentRefreshInterval` | int | 1 | Seconds between refreshes of the focused terminal's repo (kept short so the bar and CURRENT row stay live while you work). |
 | `showBranch` | bool | `true` | Show the primary branch in the bar. |
 | `showDirty` | bool | `true` | Show the total dirty count in the bar. |
 | `lazyGitMode` | enum | `focus` | `focus`: reuse/focus an open lazygit window. `floating`: always open a new floating terminal. |

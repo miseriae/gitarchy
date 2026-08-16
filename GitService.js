@@ -9,6 +9,7 @@ function statusScript() {
   return [
     'P="$1"',
     'cd "$P" 2>/dev/null || { printf \'{"ok":false}\\n\'; exit 0; }',
+    'git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { printf \'{"ok":false}\\n\'; exit 0; }',
     'B=$(git symbolic-ref --short HEAD 2>/dev/null)',
     'ST=$(git stash list 2>/dev/null | wc -l)',
     'AB=$(git rev-list --left-right --count HEAD...@{upstream} 2>/dev/null || echo "0 0")',
@@ -28,6 +29,10 @@ function statusScript() {
 
 function buildStatusCommand(path) {
   return ["bash", "-c", statusScript(), "gitarchy", String(path || "")]
+}
+
+function focusedCwdCommand() {
+  return ["omarchy-cmd-terminal-cwd"]
 }
 
 function parseStatus(raw) {
@@ -89,7 +94,6 @@ function barText(statuses, showBranch, showDirty) {
   var parts = []
   if (branch !== "") parts.push(branch)
   if (showDirty !== false && dirty > 0) parts.push("+" + dirty)
-  if (parts.length === 0) parts.push("git")
   return parts.join(" ")
 }
 

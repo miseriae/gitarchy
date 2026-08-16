@@ -11,7 +11,7 @@ Column {
   id: root
 
   property var status: null
-  property color barForeground: Color.foreground
+  property color contentForeground: Color.foreground
   property string fontFamily: Style.font.family
   property bool expanded: false
 
@@ -32,9 +32,9 @@ Column {
     height: rowBody.implicitHeight
     hasCursor: root.expanded
     current: root.dirtyCount > 0
-    foreground: root.barForeground
+    foreground: root.contentForeground
     fill: "transparent"
-    currentFill: Style.selectedFillFor(root.barForeground, Color.accent)
+    currentFill: Style.selectedFillFor(root.contentForeground, Color.accent)
 
     RowLayout {
       id: rowBody
@@ -45,7 +45,7 @@ Column {
       Text {
         Layout.alignment: Qt.AlignVCenter
         text: ""
-        color: root.hasBranch ? root.barForeground : Qt.darker(root.barForeground, 1.5)
+        color: root.hasBranch ? root.contentForeground : Qt.darker(root.contentForeground, 1.5)
         font.family: root.fontFamily
         font.pixelSize: Style.font.icon
       }
@@ -54,20 +54,34 @@ Column {
         Layout.alignment: Qt.AlignVCenter
         spacing: 0
 
-        Text {
-          text: root.status ? root.status.name || "" : ""
-          color: root.barForeground
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.body
-          font.bold: true
-          elide: Text.ElideRight
+        Row {
+          spacing: Style.space(4)
+
+          Text {
+            text: root.status ? root.status.name || "" : ""
+            color: root.contentForeground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.body
+            font.bold: true
+            elide: Text.ElideRight
+          }
+
+          Text {
+            visible: root.status && root.status.current === true
+            anchors.verticalCenter: parent.verticalCenter
+            text: "CURRENT"
+            color: Color.accent
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+          }
         }
 
         Text {
           text: root.status && root.status.branch ? root.status.branch : "not a repo"
           color: root.status && root.status.branch
             ? Color.accent
-            : Qt.darker(root.barForeground, 1.5)
+            : Qt.darker(root.contentForeground, 1.5)
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
           elide: Text.ElideRight
@@ -81,7 +95,7 @@ Column {
         text: root.countsLabel()
         color: root.dirtyCount > 0
           ? Color.urgent
-          : Qt.darker(root.barForeground, 1.5)
+          : Qt.darker(root.contentForeground, 1.5)
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
       }
@@ -91,7 +105,7 @@ Column {
         text: root.hasRemote
           ? "↑" + status.ahead + " ↓" + status.behind
           : ""
-        color: Qt.darker(root.barForeground, 1.5)
+        color: Qt.darker(root.contentForeground, 1.5)
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
       }
@@ -100,7 +114,7 @@ Column {
         visible: root.status && root.status.stash > 0
         Layout.alignment: Qt.AlignVCenter
         text: "󱘋 " + root.status.stash
-        color: Qt.darker(root.barForeground, 1.5)
+        color: Qt.darker(root.contentForeground, 1.5)
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
       }
@@ -124,7 +138,7 @@ Column {
     Rectangle {
       width: parent.width
       height: Style.spacing.hairline
-      color: root.barForeground
+      color: root.contentForeground
       opacity: 0.1
     }
 
@@ -139,7 +153,7 @@ Column {
         PanelActionButton {
           iconText: "󰊘"
           tooltipText: "Open lazygit"
-          foreground: root.barForeground
+          foreground: root.contentForeground
           fontFamily: root.fontFamily
           onClicked: root.openLazygit()
         }
@@ -147,7 +161,7 @@ Column {
         PanelActionButton {
           iconText: "󰀹"
           tooltipText: "Fetch"
-          foreground: root.barForeground
+          foreground: root.contentForeground
           fontFamily: root.fontFamily
           onClicked: root.fetch()
         }
@@ -155,7 +169,7 @@ Column {
         PanelActionButton {
           iconText: "󰅌"
           tooltipText: "Copy remote URL"
-          foreground: root.barForeground
+          foreground: root.contentForeground
           fontFamily: root.fontFamily
           onClicked: root.copyUrl()
         }
@@ -173,7 +187,7 @@ Column {
         PanelActionButton {
           iconText: "󰇾"
           tooltipText: root.status && root.status.pr ? "Hide PR" : "Show PR"
-          foreground: root.barForeground
+          foreground: root.contentForeground
           fontFamily: root.fontFamily
           onClicked: root.togglePr()
         }
@@ -198,9 +212,9 @@ Column {
 
   function prColor() {
     var pr = root.status ? root.status.pr : null
-    if (!pr) return root.barForeground
+    if (!pr) return root.contentForeground
     if (pr.state === "OPEN") return Color.accent
     if (pr.state === "MERGED") return Color.urgent
-    return Qt.darker(root.barForeground, 1.4)
+    return Qt.darker(root.contentForeground, 1.4)
   }
 }

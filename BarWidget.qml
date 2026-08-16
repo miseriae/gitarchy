@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
 import "GitService.js" as GitService
@@ -19,6 +20,8 @@ BarWidget {
 
   property var repos: []
   property var statuses: []
+  property var currentRepo: null
+  property string currentPath: ""
   property string buttonText: ""
   property string buttonTooltip: "Gitarchy — no repos configured"
   property string lastDataKey: ""
@@ -26,6 +29,7 @@ BarWidget {
   readonly property bool showBranch: setting("showBranch", true) !== false
   readonly property bool showDirty: setting("showDirty", true) !== false
   readonly property int pollInterval: Math.max(5, parseInt(setting("pollInterval", 30), 10) || 30)
+  readonly property int currentRefreshInterval: Math.max(1, parseInt(setting("currentRefreshInterval", 1), 10) || 1)
   readonly property string lazyGitMode: setting("lazyGitMode", "focus")
 
   // ---- Lifecycle contract for the nested panel (Bar.findPanelWidget)
@@ -48,22 +52,78 @@ BarWidget {
     if ("settings" in target) target.settings = root.settings
     if ("anchorItem" in target) target.anchorItem = button
     if ("hostWidget" in target) target.hostWidget = root
-    if ("statuses" in target) target.statuses = root.statuses
+    if ("statuses" in target) target.statuses = root.panelStatuses
+  }
+
+  // Watched repos + the focused-terminal repo (if any), with the current repo
+  // first so it reads as "this is where I am right now". The current repo is
+  // only shown when it is an actual git repository
+  readonly property var panelStatuses: {
+    var out = []
+    if (root.currentRepo && root.currentRepo.ok) out.push(root.currentRepo)
+    for (var i = 0; i < root.statuses.length; i++) out.push(root.statuses[i])
+    return out
   }
 
   function refresh() {
     if (refreshTimer.running) refreshTimer.restart()
     root.repos = normalizeRepos(setting("repos", []))
     root.statuses = []
+    root.currentRepo = null
     if (root.repos.length === 0) {
-      root.buttonText = "git"
+      root.buttonText = ""
       root.buttonTooltip = "Gitarchy — no repos configured"
-      return
     }
     for (var i = 0; i < gitInstantiator.count; i++) {
       var obj = gitInstantiator.objectAt(i)
       if (obj && typeof obj.refresh === "function") obj.refresh()
     }
+    if (!cwdProc.running) cwdProc.running = true
+  }
+
+  // Re-resolve only the focused-terminal repo (CURRENT row) without touching
+  // the watched repos. Called on every active-toplevel change so switching
+  // terminals updates the row immediately rather than waiting for the poll
+  function refreshCurrentRepo() {
+    root.currentRepo = null
+    root.syncPanel()
+    if (!cwdProc.running) cwdProc.running = true
+  }
+
+  // Fast re-check of the focused repo's git status only (no cwd re-resolve,
+  // no watched-repo poll). Runs on a short timer so edits and `cd` inside the
+  // focused terminal show up in the bar / CURRENT row within a second
+  function refreshCurrentStatus() {
+    if (root.currentPath !== "" && !currentProc.running) currentProc.running = true
+  }
+
+  // Focused terminal cwd resolved -> run git status on it.
+  function applyFocusedCwd(raw) {
+    var path = String(raw || "").trim()
+    if (path === "") {
+      root.currentRepo = null
+      root.syncPanel()
+      return
+    }
+    root.currentPath = path
+    if (!currentProc.running) currentProc.running = true
+  }
+
+  function applyCurrentRepo(raw) {
+    var parsed = GitService.parseStatus(raw)
+    parsed.path = root.currentPath
+    parsed.name = GitService.repoName(root.currentPath)
+    parsed.pr = null
+    parsed.current = parsed.ok
+    root.currentRepo = parsed
+    root.syncPanel()
+  }
+
+  function syncPanel() {
+    if (panelLoader.item && "statuses" in panelLoader.item)
+      panelLoader.item.statuses = root.panelStatuses
+    root.buttonText = GitService.barText(root.panelStatuses, root.showBranch, root.showDirty)
+    root.buttonTooltip = GitService.barTooltip(root.panelStatuses)
   }
 
   function applyRepoStatus(index, raw) {
@@ -76,10 +136,7 @@ BarWidget {
     copy[index] = parsed
     root.statuses = copy
 
-    root.buttonText = GitService.barText(root.statuses, root.showBranch, root.showDirty)
-    root.buttonTooltip = GitService.barTooltip(root.statuses)
-
-    if (panelLoader.item && "statuses" in panelLoader.item) panelLoader.item.statuses = root.statuses
+    root.syncPanel()
   }
 
   function repoDisplayName(path, index) {
@@ -146,7 +203,7 @@ BarWidget {
     }
   }
   onStatusesChanged: {
-    if (panelLoader.item && "statuses" in panelLoader.item) panelLoader.item.statuses = root.statuses
+    if (panelLoader.item && "statuses" in panelLoader.item) panelLoader.item.statuses = root.panelStatuses
   }
 
   Timer {
@@ -156,6 +213,33 @@ BarWidget {
     repeat: true
     triggeredOnStart: true
     onTriggered: root.refresh()
+  }
+
+  // Debounce rapid focus changes (terminal -> browser -> terminal, alt-tab)
+  // so a burst of active-toplevel events spawns at most one cwd lookup
+  Timer {
+    id: currentRepoDebounce
+    interval: 80
+    repeat: false
+    onTriggered: root.refreshCurrentRepo()
+  }
+
+  // Fast focused-repo refresh: keeps the bar + CURRENT row live while working
+  // (edits, untracked files, `cd` within the focused terminal). Cheap — one
+  // git status on a single repo (~2-3ms) per tick
+  Timer {
+    id: currentRepoTimer
+    interval: root.currentRefreshInterval * 1000
+    running: true
+    repeat: true
+    onTriggered: root.refreshCurrentStatus()
+  }
+
+  Connections {
+    target: ToplevelManager
+    function onActiveToplevelChanged() {
+      currentRepoDebounce.restart()
+    }
   }
 
   IpcHandler {
@@ -207,6 +291,28 @@ BarWidget {
           onStreamFinished: root.applyRepoStatus(repoObject.index, text)
         }
       }
+    }
+  }
+
+  // Focused-terminal repo detection: resolve the active terminal's cwd, then
+  // run the same git status pipeline on it. Shown as the "current" repo
+  Process {
+    id: cwdProc
+    running: false
+    command: GitService.focusedCwdCommand()
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.applyFocusedCwd(text)
+    }
+  }
+
+  Process {
+    id: currentProc
+    running: false
+    command: root.currentPath !== "" ? GitService.buildStatusCommand(root.currentPath) : []
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.applyCurrentRepo(text)
     }
   }
 

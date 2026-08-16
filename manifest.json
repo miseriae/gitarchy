@@ -24,6 +24,7 @@
     "defaultSection": "right",
     "defaults": {
       "pollInterval": 30,
+      "currentRefreshInterval": 1,
       "repos": [],
       "showBranch": true,
       "showDirty": true,
@@ -38,6 +39,16 @@
         "max": 3600,
         "step": 5,
         "defaultValue": 30
+      },
+      {
+        "key": "currentRefreshInterval",
+        "type": "integer",
+        "label": "Focused repo refresh (seconds)",
+        "description": "How often the focused terminal's repo is re-checked. Kept short so the bar and CURRENT row stay live while you work.",
+        "min": 1,
+        "max": 60,
+        "step": 1,
+        "defaultValue": 1
       },
       {
         "key": "showBranch",
