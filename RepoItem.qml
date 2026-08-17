@@ -4,16 +4,15 @@ import qs.Commons
 import qs.Ui
 
 // A single watched repo row in the Gitarchy panel: name · branch · dirty
-// counts · stash · ahead/behind. Single click expands a details/action strip;
-// double-click opens lazygit; the strip exposes fetch, copy URL, and
-// click-to-reveal PR status
+// counts · stash · ahead/behind. The action strip is always shown below the
+// status row; double-click opens lazygit
 Column {
   id: root
+  spacing: Style.space(6)
 
   property var status: null
   property color contentForeground: Color.foreground
   property string fontFamily: Style.font.family
-  property bool expanded: false
   property bool selected: false
 
   signal openLazygit()
@@ -36,8 +35,8 @@ Column {
     id: rowSurface
     width: parent.width
     height: rowBody.implicitHeight
-    hasCursor: root.expanded || root.selected
-    current: root.dirtyCount > 0
+    hasCursor: root.selected
+    current: false
     foreground: root.contentForeground
     fill: root.selected ? Style.hoverFillFor(root.contentForeground, Color.accent) : "transparent"
     currentFill: Style.selectedFillFor(root.contentForeground, Color.accent)
@@ -83,7 +82,7 @@ Column {
           }
 
           Text {
-            visible: root.status && root.status.pinned === true && root.status.current !== true
+            visible: root.status && root.status.pinned === true
             anchors.verticalCenter: parent.verticalCenter
             text: "PINNED"
             color: Qt.darker(root.contentForeground, 1.3)
@@ -160,16 +159,14 @@ Column {
       anchors.fill: parent
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
-      onClicked: root.expanded = !root.expanded
       onDoubleClicked: root.openLazygit()
     }
   }
 
-  // Details / action strip
+  // Action strip
   Column {
     width: parent.width
     spacing: Style.space(2)
-    visible: root.expanded
 
     Rectangle {
       width: parent.width
@@ -191,6 +188,8 @@ Column {
           iconText: ""
           tooltipText: "Open lazygit"
           foreground: root.contentForeground
+          hoverColor: Color.accent
+          bordered: true
           fontFamily: root.fontFamily
           onClicked: root.openLazygit()
         }
@@ -201,6 +200,14 @@ Column {
           foreground: root.contentForeground
           fontFamily: root.fontFamily
           onClicked: root.fetch()
+        }
+
+        Rectangle {
+          Layout.alignment: Qt.AlignVCenter
+          Layout.preferredWidth: Style.spacing.hairline
+          Layout.preferredHeight: Style.space(18)
+          color: root.contentForeground
+          opacity: 0.2
         }
 
         PanelActionButton {
@@ -228,6 +235,14 @@ Column {
         }
 
         Item { Layout.fillWidth: true; height: 1 }
+
+        Rectangle {
+          Layout.alignment: Qt.AlignVCenter
+          Layout.preferredWidth: Style.spacing.hairline
+          Layout.preferredHeight: Style.space(18)
+          color: root.contentForeground
+          opacity: 0.2
+        }
 
         PanelActionButton {
           iconText: ""

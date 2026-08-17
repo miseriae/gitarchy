@@ -144,14 +144,25 @@ Panel {
           }
         }
 
-        Repeater {
+        ListView {
+          id: repoList
+          width: parent.width
+          height: Math.min(contentHeight, panel.availableCardHeight > 0
+            ? Math.max(Style.space(160), panel.availableCardHeight - Style.space(120))
+            : Style.space(420))
           model: root.statuses
+          spacing: Style.space(6)
+          clip: true
+          boundsBehavior: Flickable.StopAtBounds
+          onCurrentIndexChanged: {
+            if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
+          }
 
-          RepoItem {
+          delegate: RepoItem {
             required property var modelData
             required property int index
 
-            width: listColumn.width
+            width: repoList.width
             status: modelData
             selected: root.selectedIndex === index
             contentForeground: root.contentForeground
@@ -208,6 +219,7 @@ Panel {
     if (root.statuses.length === 0) return
     if (root.selectedIndex < 0) root.selectedIndex = 0
     else root.selectedIndex = Math.max(0, Math.min(root.statuses.length - 1, root.selectedIndex + dy))
+    repoList.currentIndex = root.selectedIndex
     if (panel && panel.contentItem && panel.focusTarget) {
       Qt.callLater(function() { keyCatcher.forceActiveFocus() })
     }

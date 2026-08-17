@@ -62,30 +62,62 @@ BarWidget {
   // only shown when it is an actual git repository
   readonly property var panelStatuses: {
     var out = []
-    if (root.currentRepo && root.currentRepo.ok) out.push(root.currentRepo)
-    for (var i = 0; i < root.statuses.length; i++) out.push(root.statuses[i])
+    var currentPath = root.currentRepo && root.currentRepo.ok
+      ? String(root.currentRepo.path || root.currentPath)
+      : ""
+    if (currentPath !== "") out.push(root.currentPanelStatus())
+    for (var i = 0; i < root.statuses.length; i++) {
+      var status = root.statuses[i]
+      if (!status) continue
+      if (currentPath !== "" && String(status.path || "") === currentPath) continue
+      out.push(status)
+    }
     return out
   }
 
   function refresh() {
     if (refreshTimer.running) refreshTimer.restart()
-    root.repos = normalizeRepos(setting("repos", []))
-    root.statuses = []
-    root.currentRepo = null
-    if (root.repos.length === 0) {
-      root.buttonText = ""
-      root.buttonTooltip = "Gitarchy — no repos configured"
+    var nextRepos = normalizeRepos(setting("repos", []))
+    var reposChanged = root.repos.length !== nextRepos.length
+    if (!reposChanged) {
+      for (var i = 0; i < nextRepos.length; i++) {
+        if (root.repos[i] !== nextRepos[i]) {
+          reposChanged = true
+          break
+        }
+      }
     }
-    for (var i = 0; i < gitInstantiator.count; i++) {
-      var obj = gitInstantiator.objectAt(i)
+
+    if (reposChanged) {
+      var previous = root.statuses
+      var nextStatuses = []
+
+      // Keep the last known values while git status runs. Clearing these
+      // arrays makes the bar's implicit width collapse and hides the button
+      for (var j = 0; j < nextRepos.length; j++) {
+        var preserved = null
+        for (var k = 0; k < previous.length; k++) {
+          if (previous[k] && previous[k].path === nextRepos[j]) {
+            preserved = previous[k]
+            break
+          }
+        }
+        nextStatuses.push(preserved)
+      }
+
+      root.repos = nextRepos
+      root.statuses = nextStatuses
+    }
+    root.syncPanel()
+
+    for (var m = 0; m < gitInstantiator.count; m++) {
+      var obj = gitInstantiator.objectAt(m)
       if (obj && typeof obj.refresh === "function") obj.refresh()
     }
     if (!cwdProc.running) cwdProc.running = true
   }
 
   function refreshCurrentRepo() {
-    root.currentRepo = null
-    root.syncPanel()
     if (!cwdProc.running) cwdProc.running = true
   }
 
@@ -100,25 +132,45 @@ BarWidget {
       if (!cwdProc.running) cwdProc.running = true
       return
     }
-    if (root.currentPath !== "" && !currentProc.running) currentProc.running = true
+    root.requestCurrentStatus()
+  }
+
+  function requestCurrentStatus() {
+    if (root.currentPath === "" || currentProc.running) return
+    currentProc.requestedPath = root.currentPath
+    currentProc.running = true
   }
 
   // Focused terminal cwd resolved -> run git status on it
   function applyFocusedCwd(raw) {
     var path = String(raw || "").trim()
     if (path === "") {
-      root.currentRepo = null
-      root.syncPanel()
+      root.currentPath = ""
+      if (root.currentRepo !== null) {
+        root.currentRepo = null
+        root.syncPanel()
+      }
       return
     }
-    root.currentPath = path
-    if (!currentProc.running) currentProc.running = true
+
+    if (path !== root.currentPath) {
+      root.currentPath = path
+      root.currentRepo = null
+      root.syncPanel()
+    }
+    root.requestCurrentStatus()
   }
 
-  function applyCurrentRepo(raw) {
+  function applyCurrentRepo(raw, path) {
+    // A cwd change can happen while the previous git process is still active
+    // Never label an old result as the newly focused repo
+    if (path !== root.currentPath) {
+      Qt.callLater(root.requestCurrentStatus)
+      return
+    }
     var parsed = GitService.parseStatus(raw)
-    parsed.path = root.currentPath
-    parsed.name = GitService.repoName(root.currentPath)
+    parsed.path = path
+    parsed.name = GitService.repoName(path)
     parsed.pr = null
     parsed.current = parsed.ok
     root.currentRepo = parsed
@@ -150,6 +202,18 @@ BarWidget {
     var entry = repoEntry(index)
     if (entry && entry.name) return String(entry.name)
     return GitService.repoName(path)
+  }
+
+  function currentPanelStatus() {
+    var current = Object.assign({}, root.currentRepo)
+    current.pinned = false
+    for (var i = 0; i < root.repos.length; i++) {
+      if (root.repos[i] !== current.path) continue
+      current.pinned = true
+      current.name = repoDisplayName(current.path, i)
+      break
+    }
+    return current
   }
 
   function repoEntry(index) {
@@ -222,7 +286,7 @@ BarWidget {
   }
   onButtonTextChanged: {
     // Brief fade-out/in so the branch/count text swap feels like a cross-fade
-    // rather than a hard snap. Runs on every change, cheap.
+    // rather than a hard snap. Runs on every change, cheaper
     textFade.running = false
     textFade.running = true
   }
@@ -330,10 +394,11 @@ BarWidget {
   Process {
     id: currentProc
     running: false
-    command: root.currentPath !== "" ? GitService.buildStatusCommand(root.currentPath) : []
+    property string requestedPath: ""
+    command: requestedPath !== "" ? GitService.buildStatusCommand(requestedPath) : []
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.applyCurrentRepo(text)
+      onStreamFinished: root.applyCurrentRepo(text, currentProc.requestedPath)
     }
   }
 
