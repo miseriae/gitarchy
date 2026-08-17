@@ -8,20 +8,26 @@ stash, ahead/behind, and one-click access to lazygit.
 ## What you see
 
 - **Bar widget** — the primary branch and the total dirty count across all
-  watched repos (`main +3`). Hidden when no repos are configured. Left-click
+  watched repos (`master +3`). Hidden when there is nothing to show. When the
+  focused repo has conflicts or an operation in progress it shows a marker
+  (`master !2` for conflicts, `master · merge` while merging/rebasing). Left-click
   opens the panel, right-click opens lazygit for the primary repo, middle-click
   refreshes immediately.
 - **Panel** — the git repo of the currently focused terminal first (marked
   `CURRENT`, so the repo you are working in appears automatically), then one
   row per watched repo, each with branch, staged/modified/untracked counts,
-  stash count, and ahead/behind. Click a row to expand its actions;
-  double-click opens lazygit directly.
+  conflict count, stash count, and ahead/behind. Click a row to expand its
+  actions; double-click opens lazygit directly.
 
-The focused-terminal repo is detected via `omarchy-cmd-terminal-cwd` and shown
-transiently — it is not added to your watched list. `CURRENT` only appears when
-the focused terminal is inside a git repository.
+The focused-terminal repo is detected via the bundled `scripts/terminal-cwd.sh`
+(which also resolves working-directory changes inside tmux panes — the stock
+Omarchy helper misses those). `CURRENT` only appears when the focused terminal
+is inside a git repository. Expand the row and use the **pin** button to add it
+to your watched list permanently — it then shows the **PINNED** badge and an
+**unpin** button.
 
-Per-repo actions: open lazygit, `git fetch`, copy the remote URL, and a
+Per-repo actions: open lazygit, `git fetch`, copy the remote URL, copy the
+branch name, open the repo on GitHub, open it in the file manager, and a
 click-to-reveal PR status line (via GitHub CLI, when `gh` is installed).
 
 ## Install
@@ -48,14 +54,7 @@ omarchy plugin remove miseriae.gitarchy
 ## Configure
 
 Watched repos live in the widget's entry in `~/.config/omarchy/shell.json`.
-Set them with `omarchy bar set`:
-
-```sh
-omarchy bar set miseriae.gitarchy repos '["/home/you/projects/a", "~/projects/b"]' --json
-omarchy bar set miseriae.gitarchy pollInterval 60
-```
-
-Or edit the layout entry directly:
+Edit that entry directly to set the watched repo list:
 
 ```json
 {
@@ -68,6 +67,14 @@ Or edit the layout entry directly:
     }
   }
 }
+```
+
+Use `omarchy bar set` for scalar settings (it does not handle multi-item
+arrays reliably):
+
+```sh
+omarchy bar set miseriae.gitarchy pollInterval 60
+omarchy bar set miseriae.gitarchy lazyGitMode floating
 ```
 
 ### Settings
@@ -92,6 +99,7 @@ name.
 - **Double-click** a repo row to open lazygit
 - **Right-click** the bar widget to open lazygit for the primary repo
 - **Middle-click** the bar widget to refresh now
+- **j/k** (or arrow keys) to move between repo rows, **Enter** to open lazygit for the selected row, **r** to refresh the panel
 
 The header toggle switches how lazygit is opened — **Focus** (reuse/focus an
 open lazygit window) or **Floating** (always open a new floating terminal).

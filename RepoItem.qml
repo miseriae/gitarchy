@@ -6,7 +6,7 @@ import qs.Ui
 // A single watched repo row in the Gitarchy panel: name · branch · dirty
 // counts · stash · ahead/behind. Single click expands a details/action strip;
 // double-click opens lazygit; the strip exposes fetch, copy URL, and
-// click-to-reveal PR status.
+// click-to-reveal PR status
 Column {
   id: root
 
@@ -14,11 +14,17 @@ Column {
   property color contentForeground: Color.foreground
   property string fontFamily: Style.font.family
   property bool expanded: false
+  property bool selected: false
 
   signal openLazygit()
   signal fetch()
   signal copyUrl()
   signal togglePr()
+  signal openGitHub()
+  signal copyBranch()
+  signal openFolder()
+  signal pinRepo()
+  signal unpinRepo()
 
   readonly property bool hasBranch: !!status && status.branch !== ""
   readonly property int dirtyCount: status
@@ -30,10 +36,10 @@ Column {
     id: rowSurface
     width: parent.width
     height: rowBody.implicitHeight
-    hasCursor: root.expanded
+    hasCursor: root.expanded || root.selected
     current: root.dirtyCount > 0
     foreground: root.contentForeground
-    fill: "transparent"
+    fill: root.selected ? Style.hoverFillFor(root.contentForeground, Color.accent) : "transparent"
     currentFill: Style.selectedFillFor(root.contentForeground, Color.accent)
 
     RowLayout {
@@ -44,7 +50,7 @@ Column {
       // Repo icon
       Text {
         Layout.alignment: Qt.AlignVCenter
-        text: ""
+        text: ""
         color: root.hasBranch ? root.contentForeground : Qt.darker(root.contentForeground, 1.5)
         font.family: root.fontFamily
         font.pixelSize: Style.font.icon
@@ -75,16 +81,46 @@ Column {
             font.pixelSize: Style.font.caption
             font.bold: true
           }
+
+          Text {
+            visible: root.status && root.status.pinned === true && root.status.current !== true
+            anchors.verticalCenter: parent.verticalCenter
+            text: "PINNED"
+            color: Qt.darker(root.contentForeground, 1.3)
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+          }
         }
 
-        Text {
-          text: root.status && root.status.branch ? root.status.branch : "not a repo"
-          color: root.status && root.status.branch
-            ? Color.accent
-            : Qt.darker(root.contentForeground, 1.5)
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
-          elide: Text.ElideRight
+        Row {
+          spacing: Style.space(6)
+
+          Text {
+            text: root.branchLabel()
+            color: root.branchColor()
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            elide: Text.ElideRight
+          }
+
+          Text {
+            visible: root.status && root.status.conflicts > 0
+            text: "!" + root.status.conflicts
+            color: Color.urgent
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+          }
+
+          Text {
+            visible: root.status && root.status.operation !== ""
+            text: root.status.operation
+            color: Color.urgent
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+          }
         }
       }
 
@@ -93,7 +129,7 @@ Column {
       Text {
         Layout.alignment: Qt.AlignVCenter
         text: root.countsLabel()
-        color: root.dirtyCount > 0
+        color: root.dirtyCount > 0 || (root.status && root.status.conflicts > 0)
           ? Color.urgent
           : Qt.darker(root.contentForeground, 1.5)
         font.family: root.fontFamily
@@ -146,12 +182,13 @@ Column {
       width: parent.width
       spacing: Style.space(4)
 
+      // Single row of git / browse actions
       RowLayout {
         width: parent.width
         spacing: Style.space(8)
 
         PanelActionButton {
-          iconText: "󰊘"
+          iconText: ""
           tooltipText: "Open lazygit"
           foreground: root.contentForeground
           fontFamily: root.fontFamily
@@ -159,11 +196,27 @@ Column {
         }
 
         PanelActionButton {
-          iconText: "󰀹"
+          iconText: ""
           tooltipText: "Fetch"
           foreground: root.contentForeground
           fontFamily: root.fontFamily
           onClicked: root.fetch()
+        }
+
+        PanelActionButton {
+          iconText: ""
+          tooltipText: "Open on GitHub"
+          foreground: root.contentForeground
+          fontFamily: root.fontFamily
+          onClicked: root.openGitHub()
+        }
+
+        PanelActionButton {
+          iconText: "󰉋"
+          tooltipText: "Open in file manager"
+          foreground: root.contentForeground
+          fontFamily: root.fontFamily
+          onClicked: root.openFolder()
         }
 
         PanelActionButton {
@@ -176,21 +229,51 @@ Column {
 
         Item { Layout.fillWidth: true; height: 1 }
 
-        Text {
-          Layout.alignment: Qt.AlignVCenter
-          text: root.prLabel()
-          color: root.prColor()
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
+        PanelActionButton {
+          iconText: ""
+          tooltipText: "Copy branch name"
+          foreground: root.contentForeground
+          fontFamily: root.fontFamily
+          onClicked: root.copyBranch()
+        }
+
+        // Pin: only offered on the CURRENT (focused) repo that isn't pinned yet
+        PanelActionButton {
+          visible: root.status && root.status.current === true && root.status.pinned !== true
+          iconText: ""
+          tooltipText: "Pin this repo (keep it in your list)"
+          foreground: root.contentForeground
+          fontFamily: root.fontFamily
+          onClicked: root.pinRepo()
+        }
+
+        // Unpin: only offered on pinned (watched) repos
+        PanelActionButton {
+          visible: root.status && root.status.pinned === true
+          iconText: "󰐄"
+          tooltipText: "Unpin this repo"
+          foreground: root.contentForeground
+          fontFamily: root.fontFamily
+          onClicked: root.unpinRepo()
         }
 
         PanelActionButton {
-          iconText: "󰇾"
+          iconText: ""
           tooltipText: root.status && root.status.pr ? "Hide PR" : "Show PR"
           foreground: root.contentForeground
           fontFamily: root.fontFamily
           onClicked: root.togglePr()
         }
+      }
+
+      Text {
+        visible: root.status && root.status.pr
+        width: parent.width
+        elide: Text.ElideRight
+        text: root.prLabel()
+        color: root.prColor()
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
       }
     }
   }
@@ -202,6 +285,23 @@ Column {
     if (root.status.modified) parts.push("~" + root.status.modified)
     if (root.status.untracked) parts.push("-" + root.status.untracked)
     return parts.join(" ")
+  }
+
+  // Branch display: normal branch, "(no commits)" for unborn, "detached" for
+  // a detached HEAD
+  function branchLabel() {
+    if (!root.status) return ""
+    if (root.status.unborn) return "no commits"
+    if (root.status.detached) return "detached " + root.status.branch
+    return root.status.branch || "not a repo"
+  }
+
+  function branchColor() {
+    if (!root.status) return Qt.darker(root.contentForeground, 1.5)
+    if (root.status.conflicts > 0) return Color.urgent
+    if (root.status.operation !== "") return Color.urgent
+    if (root.status.branch) return Color.accent
+    return Qt.darker(root.contentForeground, 1.5)
   }
 
   function prLabel() {

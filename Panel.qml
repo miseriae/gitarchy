@@ -18,6 +18,7 @@ Panel {
   property var anchorItem: null
   property var hostWidget: null
   property var statuses: []
+  property int selectedIndex: -1
 
   readonly property var barIdentity: hostWidget || root
   readonly property string lazyGitMode: setting("lazyGitMode", "focus")
@@ -25,7 +26,7 @@ Panel {
   // Stable panel foreground. barForeground swaps to a wallpaper-contrast color
   // when the bar is transparent (it is tuned for text floating over the
   // wallpaper); the panel card has its own opaque background, so it must use
-  // the theme foreground, matching the built-in clock/weather panels.
+  // the theme foreground, matching the built-in clock/weather panels
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
 
   function refresh() {
@@ -54,6 +55,11 @@ Panel {
       anchors.fill: parent
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
+      onMoveRequested: function(dx, dy) { root.moveSelection(dy) }
+      onActivateRequested: root.activateSelection()
+      onTextKey: function(t) {
+        if (t === "r" || t === "R") root.refresh()
+      }
 
       Column {
         id: listColumn
@@ -147,23 +153,45 @@ Panel {
 
             width: listColumn.width
             status: modelData
+            selected: root.selectedIndex === index
             contentForeground: root.contentForeground
             fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
             onOpenLazygit: root.openLazygit(index)
             onFetch: root.fetch(index)
             onCopyUrl: root.copyUrl(index)
             onTogglePr: root.togglePr(index)
+            onOpenGitHub: root.openGitHub(index)
+            onCopyBranch: root.copyBranch(index)
+            onOpenFolder: root.openFolder(index)
+            onPinRepo: root.pinRepo(index)
+            onUnpinRepo: root.unpinRepo(index)
           }
         }
 
-        Text {
+        Column {
           visible: root.statuses.length === 0
           width: parent.width
-          horizontalAlignment: Text.AlignHCenter
-          text: "No repos configured"
-          color: Qt.darker(root.contentForeground, 1.4)
-          font.family: root.bar ? root.bar.fontFamily : Style.font.family
-          font.pixelSize: Style.font.body
+          spacing: Style.space(4)
+
+          Text {
+            width: parent.width
+            horizontalAlignment: Text.AlignHCenter
+            text: "No repos to show"
+            color: Qt.darker(root.contentForeground, 1.4)
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.pixelSize: Style.font.body
+            font.bold: true
+          }
+
+          Text {
+            width: parent.width
+            horizontalAlignment: Text.AlignHCenter
+            text: "Open a terminal inside a git repository, or pin one to watch it here."
+            color: Qt.darker(root.contentForeground, 1.6)
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.pixelSize: Style.font.caption
+            wrapMode: Text.WordWrap
+          }
         }
       }
     }
@@ -173,6 +201,22 @@ Panel {
     var total = GitService.totalDirty(root.statuses)
     if (root.statuses.length === 0) return ""
     return total > 0 ? root.statuses.length + " repo" + (root.statuses.length > 1 ? "s" : "") + " · " + total + " dirty" : "all clean"
+  }
+
+  // j/k (and arrow) navigation over the repo rows
+  function moveSelection(dy) {
+    if (root.statuses.length === 0) return
+    if (root.selectedIndex < 0) root.selectedIndex = 0
+    else root.selectedIndex = Math.max(0, Math.min(root.statuses.length - 1, root.selectedIndex + dy))
+    if (panel && panel.contentItem && panel.focusTarget) {
+      Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    }
+  }
+
+  function activateSelection() {
+    if (root.selectedIndex >= 0 && root.selectedIndex < root.statuses.length) {
+      root.openLazygit(root.selectedIndex)
+    }
   }
 
   function repoPath(index) {
@@ -213,6 +257,62 @@ Panel {
     if (path !== "" && root.bar) root.bar.run(GitService.copyUrlCommand(path))
   }
 
+  function openGitHub(index) {
+    var path = root.repoPath(index)
+    if (path !== "" && root.bar) root.bar.run(GitService.openGitHubCommand(path))
+  }
+
+  function copyBranch(index) {
+    var path = root.repoPath(index)
+    if (path !== "" && root.bar) root.bar.run(GitService.copyBranchCommand(path))
+  }
+
+  function openFolder(index) {
+    var path = root.repoPath(index)
+    if (path !== "" && root.bar) root.bar.run(GitService.openFolderCommand(path))
+  }
+
+  // Pin the focused/current repo to the watched list (persistent). Mirrors the
+  // clock's inline-settings write: add the path to `repos` and push through the
+  // shell so the widget picks it up live
+  function pinRepo(index) {
+    var path = root.repoPath(index)
+    if (path === "" || !root.hostWidget) return
+    var repos = root.hostWidget.repos ? root.hostWidget.repos.slice() : []
+    for (var i = 0; i < repos.length; i++) {
+      if (repos[i] === path) return  // already watched
+    }
+    repos.push(path)
+
+    var entry = { id: root.moduleName }
+    for (var existing in root.settings) if (existing !== "id") entry[existing] = root.settings[existing]
+    entry.repos = repos
+    root.settings = entry
+    if (root.hostWidget && "settings" in root.hostWidget) root.hostWidget.settings = entry
+    if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
+      root.bar.shell.updateEntryInline(root.moduleName, entry)
+  }
+
+  // Remove a repo from the watched list (persistent)
+  function unpinRepo(index) {
+    var path = root.repoPath(index)
+    if (path === "" || !root.hostWidget) return
+    var repos = root.hostWidget.repos ? root.hostWidget.repos.slice() : []
+    var next = []
+    for (var i = 0; i < repos.length; i++) {
+      if (repos[i] !== path) next.push(repos[i])
+    }
+    if (next.length === repos.length) return  // not watched
+
+    var entry = { id: root.moduleName }
+    for (var existing in root.settings) if (existing !== "id") entry[existing] = root.settings[existing]
+    entry.repos = next
+    root.settings = entry
+    if (root.hostWidget && "settings" in root.hostWidget) root.hostWidget.settings = entry
+    if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
+      root.bar.shell.updateEntryInline(root.moduleName, entry)
+  }
+
   // Click-to-reveal PR: run gh once per row, cache the result in status.pr
   property var prInFlight: {}
 
@@ -228,7 +328,8 @@ Panel {
     if (root.prInFlight[index]) return
     root.prInFlight[index] = true
     prProcess.index = index
-    prProcess.command = GitService.ghPrCommand(root.repoPath(index))
+    prProcess.workingDirectory = root.repoPath(index)
+    prProcess.command = GitService.ghPrCommand()
     prProcess.running = true
   }
 
@@ -236,6 +337,7 @@ Panel {
     id: prProcess
     running: false
     property int index: -1
+    command: GitService.ghPrCommand()
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: root.applyPr(root.prProcess.index, text)

@@ -25,12 +25,14 @@ BarWidget {
   property string buttonText: ""
   property string buttonTooltip: "Gitarchy — no repos configured"
   property string lastDataKey: ""
+  property real buttonOpacity: 1.0
 
   readonly property bool showBranch: setting("showBranch", true) !== false
   readonly property bool showDirty: setting("showDirty", true) !== false
   readonly property int pollInterval: Math.max(5, parseInt(setting("pollInterval", 30), 10) || 30)
   readonly property int currentRefreshInterval: Math.max(1, parseInt(setting("currentRefreshInterval", 1), 10) || 1)
   readonly property string lazyGitMode: setting("lazyGitMode", "focus")
+  readonly property string terminalCwdScript: String(Qt.resolvedUrl("scripts/terminal-cwd.sh")).replace("file://", "")
 
   // ---- Lifecycle contract for the nested panel (Bar.findPanelWidget)
   readonly property bool opened: panelLoader.item
@@ -81,23 +83,27 @@ BarWidget {
     if (!cwdProc.running) cwdProc.running = true
   }
 
-  // Re-resolve only the focused-terminal repo (CURRENT row) without touching
-  // the watched repos. Called on every active-toplevel change so switching
-  // terminals updates the row immediately rather than waiting for the poll
   function refreshCurrentRepo() {
     root.currentRepo = null
     root.syncPanel()
     if (!cwdProc.running) cwdProc.running = true
   }
 
-  // Fast re-check of the focused repo's git status only (no cwd re-resolve,
-  // no watched-repo poll). Runs on a short timer so edits and `cd` inside the
-  // focused terminal show up in the bar / CURRENT row within a second
+  // Fast re-check of the focused repo's git status (no watched-repo poll).
+  // Runs on a short timer so edits inside the focused terminal show up within
+  // a second. Also re-resolves the cwd every few ticks so `cd` inside a tmux
+  // pane (which fires no focus event) is picked up promptly
+  property int currentTick: 0
   function refreshCurrentStatus() {
+    root.currentTick++
+    if (root.currentTick % 10 === 0) {
+      if (!cwdProc.running) cwdProc.running = true
+      return
+    }
     if (root.currentPath !== "" && !currentProc.running) currentProc.running = true
   }
 
-  // Focused terminal cwd resolved -> run git status on it.
+  // Focused terminal cwd resolved -> run git status on it
   function applyFocusedCwd(raw) {
     var path = String(raw || "").trim()
     if (path === "") {
@@ -131,6 +137,7 @@ BarWidget {
     parsed.path = root.repos[index]
     parsed.name = repoDisplayName(root.repos[index], index)
     parsed.pr = null
+    parsed.pinned = true
 
     var copy = root.statuses.slice()
     copy[index] = parsed
@@ -176,6 +183,10 @@ BarWidget {
   }
 
   function primaryRepoPath() {
+    // The current (focused-terminal) repo takes precedence — right-click should
+    // open lazygit where you are working, not a pinned repo
+    if (root.currentRepo && root.currentRepo.ok && root.currentPath !== "")
+      return root.currentPath
     if (root.repos.length === 0) return ""
     for (var i = 0; i < root.statuses.length; i++) {
       if (root.statuses[i] && root.statuses[i].branch) return root.repos[i]
@@ -191,6 +202,10 @@ BarWidget {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
+  Behavior on implicitWidth {
+    NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+  }
+
   onBarChanged: injectPanel()
   onSettingsChanged: {
     injectPanel()
@@ -205,6 +220,12 @@ BarWidget {
   onStatusesChanged: {
     if (panelLoader.item && "statuses" in panelLoader.item) panelLoader.item.statuses = root.panelStatuses
   }
+  onButtonTextChanged: {
+    // Brief fade-out/in so the branch/count text swap feels like a cross-fade
+    // rather than a hard snap. Runs on every change, cheap.
+    textFade.running = false
+    textFade.running = true
+  }
 
   Timer {
     id: refreshTimer
@@ -215,7 +236,7 @@ BarWidget {
     onTriggered: root.refresh()
   }
 
-  // Debounce rapid focus changes (terminal -> browser -> terminal, alt-tab)
+  // Debounce rapid focus changes (terminal -> browser -> terminal)
   // so a burst of active-toplevel events spawns at most one cwd lookup
   Timer {
     id: currentRepoDebounce
@@ -299,7 +320,7 @@ BarWidget {
   Process {
     id: cwdProc
     running: false
-    command: GitService.focusedCwdCommand()
+    command: GitService.bundledCwdCommand(root.terminalCwdScript)
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: root.applyFocusedCwd(text)
@@ -322,6 +343,7 @@ BarWidget {
     bar: root.bar
     text: root.buttonText
     tooltipText: root.buttonTooltip
+    opacity: root.buttonOpacity
     horizontalMargin: 8.75
     verticalPadding: 8.75
 
@@ -329,6 +351,29 @@ BarWidget {
       if (b === Qt.RightButton) root.openPrimaryLazygit()
       else if (b === Qt.MiddleButton) root.refresh()
       else root.toggle()
+    }
+  }
+
+  // Cross-fade the bar label when its text changes: dip to 60% then back to
+  // 100%, so the branch/count swap reads as a smooth transition
+  SequentialAnimation {
+    id: textFade
+    running: false
+    onRunningChanged: if (!running) root.buttonOpacity = 1.0
+
+    NumberAnimation {
+      target: root
+      property: "buttonOpacity"
+      to: 0.6
+      duration: 70
+      easing.type: Easing.OutCubic
+    }
+    NumberAnimation {
+      target: root
+      property: "buttonOpacity"
+      to: 1.0
+      duration: 70
+      easing.type: Easing.InCubic
     }
   }
 }
