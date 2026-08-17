@@ -254,6 +254,8 @@ Panel {
   }
 
   function openLazygit(index) {
+    // TODO: Find the optimal most way to switch focus
+    root.close()
     var path = root.repoPath(index)
     if (path !== "" && root.bar) root.bar.run(GitService.openLazygitCommand(path, root.lazyGitMode))
   }
