@@ -144,11 +144,22 @@ function barTooltip(statuses) {
 
 // Command to open lazygit in a repo path from a GUI click.
 // mode "focus" (default): reuse/focus an open lazygit window (org.omarchy.lazygit).
-// mode "floating": always open a new floating terminal (org.omarchy.terminal, floated by Hyprland rules)
+// mode "floating": always open a new floating terminal (org.omarchy.terminal,
+// floated by Hyprland rules) and focus the newly created window
 function openLazygitCommand(path, mode) {
   if (mode === "floating")
-    return "omarchy-launch-tui --app-id=org.omarchy.terminal lazygit -p " + shellQuote(path)
+    return floatingLazygitCommand(path)
   return "omarchy-launch-or-focus-tui lazygit -p " + shellQuote(path)
+}
+
+function floatingLazygitCommand(path) {
+  return "before=$(hyprctl clients -j 2>/dev/null | jq -r '.[].address'); "
+    + "omarchy-launch-tui --app-id=org.omarchy.terminal lazygit -p " + shellQuote(path) + " >/dev/null 2>&1 & "
+    + "for i in $(seq 1 40); do "
+    + "address=$(hyprctl clients -j 2>/dev/null | jq -r --arg before \"$before\" 'first(.[] | . as $client | select($client.class == \"org.omarchy.terminal\") | select((($before | split(\"\\n\")) | index($client.address)) == null) | $client.address) // empty'); "
+    + "if [[ -n \"$address\" ]]; then "
+    + "hyprctl dispatch \"hl.dsp.focus({ window = \\\"address:$address\\\" })\" >/dev/null 2>&1 || hyprctl dispatch focuswindow \"address:$address\"; "
+    + "break; fi; sleep 0.05; done"
 }
 
 // Open the repo's origin remote in the default browser (GitHub, GitLab, ...)

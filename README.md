@@ -16,14 +16,14 @@ stash, ahead/behind, and one-click access to lazygit.
 - **Panel** — the git repo of the currently focused terminal first (marked
   `CURRENT`, so the repo you are working in appears automatically), then one
   row per watched repo, each with branch, staged/modified/untracked counts,
-  conflict count, stash count, and ahead/behind. Click a row to expand its
-  actions; double-click opens lazygit directly.
+  conflict count, stash count, and ahead/behind, with action buttons shown
+  underneath; double-click opens lazygit directly.
 
 The focused-terminal repo is detected via the bundled `scripts/terminal-cwd.sh`
 (which also resolves working-directory changes inside tmux panes — the stock
 Omarchy helper misses those). `CURRENT` only appears when the focused terminal
-is inside a git repository. Expand the row and use the **pin** button to add it
-to your watched list permanently — it then shows the **PINNED** badge and an
+is inside a git repository. Use the **pin** button underneath it to add it to
+your watched list permanently — it then shows the **PINNED** badge and an
 **unpin** button.
 
 Per-repo actions: open lazygit, `git fetch`, copy the remote URL, copy the
@@ -86,7 +86,7 @@ omarchy bar set miseriae.gitarchy lazyGitMode floating
 | `currentRefreshInterval` | int | 1 | Seconds between refreshes of the focused terminal's repo (kept short so the bar and CURRENT row stay live while you work). |
 | `showBranch` | bool | `true` | Show the primary branch in the bar. |
 | `showDirty` | bool | `true` | Show the total dirty count in the bar. |
-| `lazyGitMode` | enum | `focus` | `focus`: reuse/focus an open lazygit window. `floating`: always open a new floating terminal. |
+| `lazyGitMode` | enum | `focus` | `focus`: reuse/focus an open lazygit window. `floating`: always open and focus a new floating terminal. |
 
 A repo entry's `name` overrides the display label; it defaults to the folder
 name.
@@ -95,7 +95,7 @@ name.
 
 - **Click** the bar widget to open the status panel
 - **Hover** the bar widget for a per-repo tooltip
-- **Click** a repo row to expand its actions
+- **Use** the action buttons shown underneath each repo row
 - **Double-click** a repo row to open lazygit
 - **Right-click** the bar widget to open lazygit for the primary repo
 - **Middle-click** the bar widget to refresh now
