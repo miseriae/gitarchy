@@ -8,8 +8,9 @@ stash, ahead/behind, and one-click access to lazygit.
 ## What you see
 
 - **Bar widget** — the primary branch and the total dirty count across all
-  watched repos (`master +3`). Hidden when there is nothing to show. When the
-  focused repo has conflicts or an operation in progress it shows a marker
+  watched repos (`master +3`). Its label is empty when there is nothing to show.
+  The widget is hidden in that state. When the focused repo has conflicts or an
+  operation in progress it shows a marker
   (`master !2` for conflicts, `master · merge` while merging/rebasing). Left-click
   opens the panel, right-click opens lazygit for the primary repo, middle-click
   refreshes immediately.
@@ -46,10 +47,20 @@ omarchy plugin remove miseriae.gitarchy
 ## Requirements
 
 - Omarchy with a bar (Quattro / Quickshell)
-- `git` in the runtime PATH
+- `bash`, `git`, `jq`, `hyprctl`, and standard POSIX utilities in the runtime PATH
+- `/proc` mounted and readable for focused-terminal detection
+- `kitty`/`kitten` and `tmux` are used when available to resolve terminal and pane cwd;
+  the helper falls back to the terminal process cwd when they are unavailable
 - Optional: `lazygit` for the "Open lazygit" actions
 - Optional: `gh` (GitHub CLI) for the PR status line
 - Optional: `wl-clipboard` (`wl-copy`) for the "Copy remote URL" action
+- `xdg-open` is used by the GitHub and file-manager actions
+
+The plugin runs inside Omarchy's long-running shell process with the current
+user's permissions. It can read terminal process information, execute `git`
+commands, launch applications, and update the widget's own entry in
+`~/.config/omarchy/shell.json` when you explicitly pin/unpin a repository or
+change the lazygit mode. It does not install packages or run a remote build.
 
 ## Configure
 
@@ -111,8 +122,9 @@ above.
 Each watched repo is polled on the configured interval. A small bash script
 runs `git status --porcelain=v1`, `git stash list`, and an upstream
 ahead/behind count, emitting a single JSON line the widget parses. Bar text is
-derived from those counts; nothing leaves the machine and no network calls are
-made (PR status is fetched on demand only, via `gh`, when you reveal it).
+derived from those counts. Normal polling is local, but the explicit **Fetch**
+action runs `git fetch --all --prune` and may contact every configured remote.
+The **Show PR** action runs `gh pr view` on demand and may contact GitHub.
 
 ## License
 
