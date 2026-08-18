@@ -184,10 +184,19 @@ BarWidget {
     root.buttonTooltip = GitService.barTooltip(root.panelStatuses)
   }
 
-  function applyRepoStatus(index, raw) {
+  function applyRepoStatus(path, raw) {
+    var index = -1
+    for (var i = 0; i < root.repos.length; i++) {
+      if (root.repos[i] === path) {
+        index = i
+        break
+      }
+    }
+    if (index < 0) return
+
     var parsed = GitService.parseStatus(raw)
-    parsed.path = root.repos[index]
-    parsed.name = repoDisplayName(root.repos[index], index)
+    parsed.path = path
+    parsed.name = repoDisplayName(path, index)
     parsed.pr = null
     parsed.pinned = true
 
@@ -263,8 +272,8 @@ BarWidget {
     if (path !== "" && root.bar) root.bar.run(GitService.openLazygitCommand(path, root.lazyGitMode))
   }
 
-  implicitWidth: button.implicitWidth
-  implicitHeight: button.implicitHeight
+  implicitWidth: root.buttonText === "" ? 0 : button.implicitWidth
+  implicitHeight: root.buttonText === "" ? 0 : button.implicitHeight
 
   Behavior on implicitWidth {
     NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
@@ -360,20 +369,23 @@ BarWidget {
       id: repoObject
       required property var modelData
       required property int index
+      property string requestedPath: ""
       visible: false
 
       function refresh() {
         if (gitProc.running) return
+        repoObject.requestedPath = String(repoObject.modelData || "")
+        if (repoObject.requestedPath === "") return
         gitProc.running = true
       }
 
       Process {
         id: gitProc
         running: false
-        command: GitService.buildStatusCommand(repoObject.modelData)
+        command: GitService.buildStatusCommand(repoObject.requestedPath)
         stdout: StdioCollector {
           waitForEnd: true
-          onStreamFinished: root.applyRepoStatus(repoObject.index, text)
+          onStreamFinished: root.applyRepoStatus(repoObject.requestedPath, text)
         }
       }
     }
@@ -405,6 +417,7 @@ BarWidget {
   WidgetButton {
     id: button
     anchors.fill: parent
+    visible: root.buttonText !== ""
     bar: root.bar
     text: root.buttonText
     tooltipText: root.buttonTooltip

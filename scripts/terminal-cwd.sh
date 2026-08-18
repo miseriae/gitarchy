@@ -87,8 +87,6 @@ main() {
 
   if [[ -d $cwd ]]; then
     printf '%s\n' "$cwd"
-  else
-    printf '%s\n' "$HOME"
   fi
 }
 

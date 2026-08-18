@@ -19,6 +19,7 @@ Panel {
   property var hostWidget: null
   property var statuses: []
   property int selectedIndex: -1
+  property bool ghAvailable: false
 
   readonly property var barIdentity: hostWidget || root
   readonly property string lazyGitMode: setting("lazyGitMode", "focus")
@@ -167,6 +168,7 @@ Panel {
             selected: root.selectedIndex === index
             contentForeground: root.contentForeground
             fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+            ghAvailable: root.ghAvailable
             onOpenLazygit: root.openLazygit(index)
             onFetch: root.fetch(index)
             onCopyUrl: root.copyUrl(index)
@@ -254,7 +256,6 @@ Panel {
   }
 
   function openLazygit(index) {
-    // TODO: Find the optimal most way to switch focus
     root.close()
     var path = root.repoPath(index)
     if (path !== "" && root.bar) root.bar.run(GitService.openLazygitCommand(path, root.lazyGitMode))
@@ -331,6 +332,7 @@ Panel {
   property var prInFlight: {}
 
   function togglePr(index) {
+    if (!root.ghAvailable || prProcess.running) return
     var s = root.statuses[index]
     if (!s) return
     if (s.pr) {
@@ -339,29 +341,47 @@ Panel {
       root.statuses = copy
       return
     }
-    if (root.prInFlight[index]) return
-    root.prInFlight[index] = true
-    prProcess.index = index
-    prProcess.workingDirectory = root.repoPath(index)
+    var path = root.repoPath(index)
+    if (path === "" || root.prInFlight[path]) return
+    root.prInFlight[path] = true
+    prProcess.requestedPath = path
+    prProcess.workingDirectory = path
     prProcess.command = GitService.ghPrCommand()
     prProcess.running = true
   }
 
   Process {
-    id: prProcess
-    running: false
-    property int index: -1
-    command: GitService.ghPrCommand()
+    id: ghCheck
+    command: ["bash", "-c", "command -v gh 2>/dev/null"]
+    running: true
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.applyPr(root.prProcess.index, text)
+      onStreamFinished: root.ghAvailable = String(text || "").trim() !== ""
     }
   }
 
-  function applyPr(index, raw) {
-    root.prInFlight[index] = false
+  Process {
+    id: prProcess
+    running: false
+    property string requestedPath: ""
+    command: GitService.ghPrCommand()
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.applyPr(root.prProcess.requestedPath, text)
+    }
+  }
+
+  function applyPr(path, raw) {
+    root.prInFlight[path] = false
+    var index = -1
+    for (var i = 0; i < root.statuses.length; i++) {
+      if (root.statuses[i] && String(root.statuses[i].path || "") === path) {
+        index = i
+        break
+      }
+    }
+    if (index < 0) return
     var s = root.statuses[index]
-    if (!s) return
     var copy = root.statuses.slice()
     copy[index] = Object.assign({}, s, { pr: GitService.parsePr(raw) })
     root.statuses = copy

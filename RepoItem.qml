@@ -14,6 +14,7 @@ Column {
   property color contentForeground: Color.foreground
   property string fontFamily: Style.font.family
   property bool selected: false
+  property bool ghAvailable: false
 
   signal openLazygit()
   signal fetch()
@@ -273,6 +274,7 @@ Column {
         }
 
         PanelActionButton {
+          visible: root.ghAvailable
           iconText: ""
           tooltipText: root.status && root.status.pr ? "Hide PR" : "Show PR"
           foreground: root.contentForeground
