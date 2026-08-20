@@ -192,12 +192,10 @@ function openGitHubCommand(path) {
     + "if [[ -n $url ]]; then xdg-open \"$url\"; else xdg-open " + shellQuote(path) + "; fi"
 }
 
-// Copy the current branch name to the clipboard
 function copyBranchCommand(path) {
   return "git -C " + shellQuote(path) + " branch --show-current 2>/dev/null | wl-copy"
 }
 
-// Open the repo in the file manager
 function openFolderCommand(path) {
   return "xdg-open " + shellQuote(path)
 }

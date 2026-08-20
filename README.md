@@ -27,9 +27,14 @@ is inside a git repository. Use the **pin** button underneath it to add it to
 your watched list permanently — it then shows the **PINNED** badge and an
 **unpin** button.
 
-Per-repo actions: open lazygit, `git fetch`, copy the remote URL, copy the
+Per-repo actions: open lazygit, `git fetch`, `git pull` (fast-forward only),
+`git push` (uses the branch's upstream), copy the remote URL, copy the
 branch name, open the repo on GitHub, open it in the file manager, and a
 click-to-reveal PR status line (via GitHub CLI, when `gh` is installed).
+
+The bar label is tinted for at-a-glance status: red while a repo has conflicts
+or an operation is in progress (merge/rebase/…), accent when there is
+uncommitted work, and the normal bar color when everything is clean.
 
 ## Install
 
@@ -55,6 +60,11 @@ omarchy plugin remove miseriae.gitarchy
 - Optional: `gh` (GitHub CLI) for the PR status line
 - Optional: `wl-clipboard` (`wl-copy`) for the "Copy remote URL" action
 - `xdg-open` is used by the GitHub and file-manager actions
+
+The panel uses Nerd Font icons when the Omarchy bar font is Nerd Font-based.
+All icon-bearing controls fall back to standard Unicode symbols if a plain
+custom font is selected, so the controls remain visible without installing
+another font.
 
 The plugin runs inside Omarchy's long-running shell process with the current
 user's permissions. It can read terminal process information, execute `git`

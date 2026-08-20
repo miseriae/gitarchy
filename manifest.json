@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "miseriae.gitarchy",
   "name": "Gitarchy",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "miseriae",
   "license": "MIT",
   "description": "Git status for watched repos in the Omarchy bar: dirty counts, branches, stash, ahead/behind, and lazygit.",
