@@ -124,6 +124,22 @@ function barText(statuses, showBranch, showDirty) {
   return parts.join(" ")
 }
 
+// TODO: Implement and improv glanceable state
+// Glanceable overall state for the bar label color: "urgent" when a repo needs
+// user attention (conflicts or an in-progress operation), "accent" when there
+// is uncommitted work, otherwise "neutral". The widget maps these to theme
+// colors so the bar communicates status without extra text
+function barState(statuses) {
+  if (!Array.isArray(statuses)) return "neutral"
+  for (var i = 0; i < statuses.length; i++) {
+    var s = statuses[i]
+    if (!s) continue
+    if (s.conflicts > 0 || (s.operation && s.operation !== "")) return "urgent"
+    if ((s.staged || 0) + (s.modified || 0) + (s.untracked || 0) > 0) return "accent"
+  }
+  return "neutral"
+}
+
 function barTooltip(statuses) {
   if (!Array.isArray(statuses) || statuses.length === 0) return "Gitarchy — no repos configured"
   var lines = []
@@ -188,6 +204,16 @@ function openFolderCommand(path) {
 
 function fetchCommand(path) {
   return "git -C " + shellQuote(path) + " fetch --all --prune"
+}
+
+// Pull is fast-forward only so it never rewrites local history (safe default
+// for a one-click action). Push uses the branch's existing upstream
+function pullCommand(path) {
+  return "git -C " + shellQuote(path) + " pull --ff-only"
+}
+
+function pushCommand(path) {
+  return "git -C " + shellQuote(path) + " push"
 }
 
 function copyUrlCommand(path) {

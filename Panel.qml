@@ -29,6 +29,8 @@ Panel {
   // wallpaper); the panel card has its own opaque background, so it must use
   // the theme foreground, matching the built-in clock/weather panels
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
+  readonly property bool nerdFontSelected: String(Style.resolvedFontFamily || "").toLowerCase().indexOf("nerd") !== -1
+  readonly property string refreshIcon: root.nerdFontSelected ? "󰑓" : "\u21BB"
 
   function refresh() {
     if (root.hostWidget && typeof root.hostWidget.refresh === "function")
@@ -137,7 +139,7 @@ Panel {
             id: refreshBtn
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            iconText: "󰑓"
+            iconText: root.refreshIcon
             tooltipText: "Refresh"
             foreground: root.contentForeground
             fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
@@ -171,6 +173,8 @@ Panel {
             ghAvailable: root.ghAvailable
             onOpenLazygit: root.openLazygit(index)
             onFetch: root.fetch(index)
+            onPull: root.pull(index)
+            onPush: root.push(index)
             onCopyUrl: root.copyUrl(index)
             onTogglePr: root.togglePr(index)
             onOpenGitHub: root.openGitHub(index)
@@ -264,6 +268,18 @@ Panel {
   function fetch(index) {
     var path = root.repoPath(index)
     if (path !== "" && root.bar) root.bar.run(GitService.fetchCommand(path))
+    root.refresh()
+  }
+
+  function pull(index) {
+    var path = root.repoPath(index)
+    if (path !== "" && root.bar) root.bar.run(GitService.pullCommand(path))
+    root.refresh()
+  }
+
+  function push(index) {
+    var path = root.repoPath(index)
+    if (path !== "" && root.bar) root.bar.run(GitService.pushCommand(path))
     root.refresh()
   }
 
