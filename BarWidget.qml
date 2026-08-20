@@ -177,6 +177,11 @@ BarWidget {
     root.syncPanel()
   }
 
+  // Glanceable bar tint, derived from the live statuses so it updates on every
+  // status change without manual re-sync: urgent (conflict/in-progress),
+  // accent (uncommitted work), or neutral (inherits the bar's normal color)
+  readonly property string buttonState: GitService.barState(root.panelStatuses)
+
   function syncPanel() {
     if (panelLoader.item && "statuses" in panelLoader.item)
       panelLoader.item.statuses = root.panelStatuses
@@ -424,6 +429,8 @@ BarWidget {
     opacity: root.buttonOpacity
     horizontalMargin: 8.75
     verticalPadding: 8.75
+    active: root.buttonState !== "neutral"
+    activeColor: root.buttonState === "urgent" ? Color.urgent : Color.accent
 
     onPressed: function(b) {
       if (b === Qt.RightButton) root.openPrimaryLazygit()
