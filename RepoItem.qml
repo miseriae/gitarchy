@@ -5,7 +5,7 @@ import qs.Ui
 
 // A single watched repo row in the Gitarchy panel: name · branch · dirty
 // counts · stash · ahead/behind. The action strip is always shown below the
-// status row; double-click opens lazygit
+// status row; right-click or double-click opens lazygit
 Column {
   id: root
   spacing: Style.space(6)
@@ -32,7 +32,7 @@ Column {
   readonly property int dirtyCount: status
     ? (status.staged || 0) + (status.modified || 0) + (status.untracked || 0)
     : 0
-  readonly property bool hasRemote: status && (status.ahead || status.behind) ? true : false
+  readonly property bool hasDivergence: status && (status.ahead || status.behind) ? true : false
   // Omarchy normally resolves `monospace` to a Nerd Font. If a user selects a
   // plain font, it should use standard Unicode alternatives instead of missing glyphs
   // I hope so, at least (;
@@ -40,7 +40,7 @@ Column {
   readonly property string repoIcon: root.nerdFontSelected ? "\uF401" : "\u25C8"
   readonly property string stashIcon: root.nerdFontSelected ? "󱘋" : "\u2261"
   readonly property string lazygitIcon: root.nerdFontSelected ? "\uE702" : "\u25C6"
-  readonly property string fetchIcon: root.nerdFontSelected ? "\uF409" : "\u2193"
+  readonly property string fetchIcon: root.nerdFontSelected ? "\uF409" : "\u21C5"
   readonly property string pullIcon: root.nerdFontSelected ? "\uF404" : "\u2193"
   readonly property string pushIcon: root.nerdFontSelected ? "\uF403" : "\u2191"
   readonly property string githubIcon: root.nerdFontSelected ? "\uE717" : "\u2197"
@@ -157,7 +157,7 @@ Column {
 
       Text {
         Layout.alignment: Qt.AlignVCenter
-        text: root.hasRemote
+        text: root.hasDivergence
           ? "↑" + status.ahead + " ↓" + status.behind
           : ""
         color: Qt.darker(root.contentForeground, 1.5)
@@ -177,9 +177,13 @@ Column {
 
     MouseArea {
       anchors.fill: parent
+      acceptedButtons: Qt.LeftButton | Qt.RightButton
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
       onDoubleClicked: root.openLazygit()
+      onClicked: function(mouse) {
+        if (mouse.button === Qt.RightButton) root.openLazygit()
+      }
     }
   }
 
@@ -348,7 +352,7 @@ Column {
     var parts = []
     if (root.status.staged) parts.push("+" + root.status.staged)
     if (root.status.modified) parts.push("~" + root.status.modified)
-    if (root.status.untracked) parts.push("-" + root.status.untracked)
+    if (root.status.untracked) parts.push("?" + root.status.untracked)
     return parts.join(" ")
   }
 

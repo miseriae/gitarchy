@@ -17,8 +17,8 @@ stash, ahead/behind, and one-click access to lazygit.
 - **Panel** — the git repo of the currently focused terminal first (marked
   `CURRENT`, so the repo you are working in appears automatically), then one
   row per watched repo, each with branch, staged/modified/untracked counts,
-  conflict count, stash count, and ahead/behind, with action buttons shown
-  underneath; double-click opens lazygit directly.
+conflict count, stash count, and ahead/behind, with action buttons shown
+underneath; right-click or double-click opens lazygit directly.
 
 The focused-terminal repo is detected via the bundled `scripts/terminal-cwd.sh`
 (which also resolves working-directory changes inside tmux panes — the stock
@@ -117,7 +117,7 @@ name.
 - **Click** the bar widget to open the status panel
 - **Hover** the bar widget for a per-repo tooltip
 - **Use** the action buttons shown underneath each repo row
-- **Double-click** a repo row to open lazygit
+- **Right-click or double-click** a repo row to open lazygit
 - **Right-click** the bar widget to open lazygit for the primary repo
 - **Middle-click** the bar widget to refresh now
 - **j/k** (or arrow keys) to move between repo rows, **Enter** to open lazygit for the selected row, **r** to refresh the panel

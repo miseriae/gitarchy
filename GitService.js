@@ -35,6 +35,9 @@ function statusScript() {
     'git rev-parse --verify HEAD >/dev/null 2>&1; UNBORN=$([ $? -ne 0 ] && echo 1 || echo 0)',
     '[ -n "$B" ] || { DETACHED=1; B=$(git rev-parse --short HEAD 2>/dev/null); }',
     'DETACHED=${DETACHED:-0}',
+    // JSON-escape the branch name)
+    'B=${B//\\\\/\\\\\\\\}',
+    'B=${B//\\"/\\\\\\"}',
     'printf \'{"ok":true,"branch":"%s","staged":%d,"modified":%d,"untracked":%d,"conflicts":%d,"stash":%d,"ahead":%d,"behind":%d,"operation":"%s","detached":%d,"unborn":%d}\\n\' "$B" "$STAGED" "$MOD" "$UNT" "$CONF" "$ST" "$AHEAD" "$BEHIND" "$OP" "$DETACHED" "$UNBORN"'
   ].join("\n")
 }
@@ -124,7 +127,6 @@ function barText(statuses, showBranch, showDirty) {
   return parts.join(" ")
 }
 
-// TODO: Implement and improv glanceable state
 // Glanceable overall state for the bar label color: "urgent" when a repo needs
 // user attention (conflicts or an in-progress operation), "accent" when there
 // is uncommitted work, otherwise "neutral". The widget maps these to theme
@@ -151,7 +153,7 @@ function barTooltip(statuses) {
     var dirty = (s.staged || 0) + (s.modified || 0) + (s.untracked || 0)
     var counts = ""
     if (s.staged || s.modified || s.untracked)
-      counts = " +" + s.staged + " ~" + s.modified + " -" + s.untracked
+      counts = " +" + s.staged + " ~" + s.modified + " ?" + s.untracked
     var remote = (s.ahead || s.behind) ? " ↑" + s.ahead + " ↓" + s.behind : ""
     lines.push(name + "  " + branch + counts + remote + (s.stash ? " {" + s.stash + "}" : ""))
   }

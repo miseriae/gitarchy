@@ -246,9 +246,13 @@ BarWidget {
       var path = ""
       if (typeof v === "string" && v.trim() !== "") path = v.trim()
       else if (v && typeof v === "object" && v.path) path = String(v.path).trim()
-      if (path !== "") {
-        out.push(expandHome(path.replace(/\/+$/, "")))
+      if (path === "") continue
+      path = expandHome(path.replace(/\/+$/, ""))
+      var duplicate = false
+      for (var j = 0; j < out.length; j++) {
+        if (out[j] === path) { duplicate = true; break }
       }
+      if (!duplicate) out.push(path)
     }
     return out
   }
