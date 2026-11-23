@@ -10,29 +10,33 @@ import "GitService.js" as GitService
 // count in the bar, and hosts the details panel.
 //
 // Config (shell.json entry for this widget, or defaults from manifest):
-//   pollInterval  seconds between git status refreshes (default 30)
-//   repos         array of paths (or {path, name} objects) to watch
-//   showBranch    show the primary branch name (default true)
-//   showDirty     show total dirty count (default true)
+//   pollInterval            seconds between git status refreshes (default 30)
+//   currentRefreshInterval  seconds between focused-repo refreshes (default 2)
+//   repos                   array of paths (or {path, name} objects) to watch
+//   showBranch              show the primary branch name (default true)
+//   showDirty               show total dirty count (default true)
+//   lazyGitMode             "focus" or "floating"
 BarWidget {
   id: root
   moduleName: "miseriae.gitarchy"
+
+  readonly property string homeDir: Quickshell.env("HOME")
 
   property var repos: []
   property var statuses: []
   property var currentRepo: null
   property string currentPath: ""
-  property string buttonText: ""
-  property string buttonTooltip: "Gitarchy — no repos configured"
   property string lastDataKey: ""
-  property real buttonOpacity: 1.0
 
-  readonly property bool showBranch: setting("showBranch", true) !== false
-  readonly property bool showDirty: setting("showDirty", true) !== false
+  readonly property bool showBranch: root.boolSetting("showBranch", true)
+  readonly property bool showDirty: root.boolSetting("showDirty", true)
   readonly property int pollInterval: Math.max(5, parseInt(setting("pollInterval", 30), 10) || 30)
-  readonly property int currentRefreshInterval: Math.max(1, parseInt(setting("currentRefreshInterval", 1), 10) || 1)
+  readonly property int currentRefreshInterval: Math.max(1, parseInt(setting("currentRefreshInterval", 2), 10) || 2)
   readonly property string lazyGitMode: setting("lazyGitMode", "focus")
-  readonly property string terminalCwdScript: String(Qt.resolvedUrl("scripts/terminal-cwd.sh")).replace("file://", "")
+  readonly property string terminalCwdScript: {
+    var url = String(Qt.resolvedUrl("scripts/terminal-cwd.sh")).replace(/^file:\/\//, "")
+    try { return decodeURIComponent(url) } catch (e) { return url }
+  }
 
   // ---- Lifecycle contract for the nested panel (Bar.findPanelWidget)
   readonly property bool opened: panelLoader.item
@@ -59,20 +63,26 @@ BarWidget {
 
   // Watched repos + the focused-terminal repo (if any), with the current repo
   // first so it reads as "this is where I am right now". The current repo is
-  // only shown when it is an actual git repository
+  // only shown when it is an actual git repository. Repos are deduplicated by
+  // work-tree root, so a terminal inside a subdirectory of a watched repo does
+  // not show up twice or count its dirty files twice.
   readonly property var panelStatuses: {
-    var out = []
-    var currentPath = root.currentRepo && root.currentRepo.ok
-      ? String(root.currentRepo.path || root.currentPath)
-      : ""
-    if (currentPath !== "") out.push(root.currentPanelStatus())
-    for (var i = 0; i < root.statuses.length; i++) {
-      var status = root.statuses[i]
-      if (!status) continue
-      if (currentPath !== "" && String(status.path || "") === currentPath) continue
-      out.push(status)
-    }
-    return out
+    // Decorate the current status first (pin badge + display name), then merge
+    // it with the watched statuses so it can be deduplicated by work-tree root
+    var current = root.currentRepo && root.currentRepo.ok ? root.currentPanelStatus() : null
+    return GitService.mergeStatuses(current, root.statuses)
+  }
+
+  // `omarchy bar set` stores a plain string unless --json is passed, so a
+  // boolean typed on the command line arrives as "true"/"false" rather than a
+  // JSON boolean. Accept both forms.
+  function boolSetting(name, fallback) {
+    var value = setting(name, fallback)
+    if (typeof value === "boolean") return value
+    var text = String(value).toLowerCase()
+    if (text === "true" || text === "1" || text === "yes" || text === "on") return true
+    if (text === "false" || text === "0" || text === "no" || text === "off") return false
+    return fallback !== false
   }
 
   function refresh() {
@@ -122,9 +132,8 @@ BarWidget {
   }
 
   // Fast re-check of the focused repo's git status (no watched-repo poll).
-  // Runs on a short timer so edits inside the focused terminal show up within
-  // a second. Also re-resolves the cwd every few ticks so `cd` inside a tmux
-  // pane (which fires no focus event) is picked up promptly
+  // Also re-resolves the cwd every few ticks so `cd` inside a tmux pane
+  // (which fires no focus event) is picked up promptly
   property int currentTick: 0
   function refreshCurrentStatus() {
     root.currentTick++
@@ -143,7 +152,7 @@ BarWidget {
 
   // Focused terminal cwd resolved -> run git status on it
   function applyFocusedCwd(raw) {
-    var path = String(raw || "").trim()
+    var path = String(raw || "").replace(/\s+$/, "")
     if (path === "") {
       root.currentPath = ""
       if (root.currentRepo !== null) {
@@ -170,7 +179,8 @@ BarWidget {
     }
     var parsed = GitService.parseStatus(raw)
     parsed.path = path
-    parsed.name = GitService.repoName(path)
+    parsed.root = parsed.root !== "" ? parsed.root : path
+    parsed.name = root.repoDisplayName(path, parsed.root)
     parsed.pr = null
     parsed.current = parsed.ok
     root.currentRepo = parsed
@@ -182,11 +192,14 @@ BarWidget {
   // accent (uncommitted work), or neutral (inherits the bar's normal color)
   readonly property string buttonState: GitService.barState(root.panelStatuses)
 
+  // Derived so settings that only affect the label (showBranch/showDirty)
+  // update immediately instead of waiting for the next poll
+  readonly property string buttonText: GitService.barText(root.panelStatuses, root.showBranch, root.showDirty)
+  readonly property string buttonTooltip: GitService.barTooltip(root.panelStatuses)
+
   function syncPanel() {
     if (panelLoader.item && "statuses" in panelLoader.item)
       panelLoader.item.statuses = root.panelStatuses
-    root.buttonText = GitService.barText(root.panelStatuses, root.showBranch, root.showDirty)
-    root.buttonTooltip = GitService.barTooltip(root.panelStatuses)
   }
 
   function applyRepoStatus(path, raw) {
@@ -201,7 +214,8 @@ BarWidget {
 
     var parsed = GitService.parseStatus(raw)
     parsed.path = path
-    parsed.name = repoDisplayName(path, index)
+    parsed.root = parsed.root !== "" ? parsed.root : path
+    parsed.name = root.repoDisplayName(path, parsed.root)
     parsed.pr = null
     parsed.pinned = true
 
@@ -212,66 +226,54 @@ BarWidget {
     root.syncPanel()
   }
 
-  function repoDisplayName(path, index) {
-    var entry = repoEntry(index)
-    if (entry && entry.name) return String(entry.name)
-    return GitService.repoName(path)
+  function repoDisplayName(path, rootPath) {
+    return GitService.repoDisplayName(setting("repos", []), path, rootPath, root.homeDir)
   }
 
   function currentPanelStatus() {
     var current = Object.assign({}, root.currentRepo)
     current.pinned = false
-    for (var i = 0; i < root.repos.length; i++) {
-      if (root.repos[i] !== current.path) continue
+
+    var key = GitService.statusKey(current)
+    for (var i = 0; i < root.statuses.length; i++) {
+      var status = root.statuses[i]
+      if (!status) continue
+      if (GitService.statusKey(status) !== key) continue
       current.pinned = true
-      current.name = repoDisplayName(current.path, i)
-      break
+      current.name = root.repoDisplayName(status.path, status.root || status.path)
+      return current
+    }
+
+    // Statuses may still be loading; match the configured entry by path so the
+    // pin badge is stable from the first frame
+    var entries = GitService.normalizeRepoList(setting("repos", []), root.homeDir)
+    var targets = [String(current.path || ""), String(current.root || "")]
+    for (var j = 0; j < entries.length; j++) {
+      if (targets.indexOf(entries[j].path) !== -1) {
+        current.pinned = true
+        current.name = entries[j].name !== "" ? entries[j].name : GitService.repoName(entries[j].path)
+        return current
+      }
     }
     return current
   }
 
-  function repoEntry(index) {
-    var list = setting("repos", [])
-    if (list && typeof list.length === "number" && list[index] && typeof list[index] === "object")
-      return list[index]
-    return null
-  }
-
   function normalizeRepos(list) {
+    var entries = GitService.normalizeRepoList(list, root.homeDir)
     var out = []
-    if (!list) return out
-    var length = typeof list.length === "number" ? list.length : 0
-    for (var i = 0; i < length; i++) {
-      var v = list[i]
-      var path = ""
-      if (typeof v === "string" && v.trim() !== "") path = v.trim()
-      else if (v && typeof v === "object" && v.path) path = String(v.path).trim()
-      if (path === "") continue
-      path = expandHome(path.replace(/\/+$/, ""))
-      var duplicate = false
-      for (var j = 0; j < out.length; j++) {
-        if (out[j] === path) { duplicate = true; break }
-      }
-      if (!duplicate) out.push(path)
-    }
+    for (var i = 0; i < entries.length; i++) out.push(entries[i].path)
     return out
-  }
-
-  function expandHome(path) {
-    if (path === "~") return Quickshell.env("HOME")
-    if (path.charAt(0) === "~" && path.charAt(1) === "/")
-      return Quickshell.env("HOME") + path.substring(1)
-    return path
   }
 
   function primaryRepoPath() {
     // The current (focused-terminal) repo takes precedence — right-click should
     // open lazygit where you are working, not a pinned repo
     if (root.currentRepo && root.currentRepo.ok && root.currentPath !== "")
-      return root.currentPath
+      return root.currentRepo.root !== "" ? root.currentRepo.root : root.currentPath
     if (root.repos.length === 0) return ""
     for (var i = 0; i < root.statuses.length; i++) {
-      if (root.statuses[i] && root.statuses[i].branch) return root.repos[i]
+      if (root.statuses[i] && root.statuses[i].branch)
+        return root.statuses[i].root !== "" ? root.statuses[i].root : root.repos[i]
     }
     return root.repos[0]
   }
@@ -281,11 +283,12 @@ BarWidget {
     if (path !== "" && root.bar) root.bar.run(GitService.openLazygitCommand(path, root.lazyGitMode))
   }
 
-  implicitWidth: root.buttonText === "" ? 0 : button.implicitWidth
-  implicitHeight: root.buttonText === "" ? 0 : button.implicitHeight
+  visible: root.buttonText !== ""
+  implicitWidth: button.implicitWidth
+  implicitHeight: button.implicitHeight
 
   Behavior on implicitWidth {
-    NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+    NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic }
   }
 
   onBarChanged: injectPanel()
@@ -298,15 +301,6 @@ BarWidget {
       root.lastDataKey = dataKey
       refresh()
     }
-  }
-  onStatusesChanged: {
-    if (panelLoader.item && "statuses" in panelLoader.item) panelLoader.item.statuses = root.panelStatuses
-  }
-  onButtonTextChanged: {
-    // Brief fade-out/in so the branch/count text swap feels like a cross-fade
-    // rather than a hard snap. Runs on every change, cheaper
-    textFade.running = false
-    textFade.running = true
   }
 
   Timer {
@@ -328,8 +322,7 @@ BarWidget {
   }
 
   // Fast focused-repo refresh: keeps the bar + CURRENT row live while working
-  // (edits, untracked files, `cd` within the focused terminal). Cheap — one
-  // git status on a single repo (~2-3ms) per tick
+  // (edits, untracked files, `cd` within the focused terminal)
   Timer {
     id: currentRepoTimer
     interval: root.currentRefreshInterval * 1000
@@ -345,7 +338,7 @@ BarWidget {
     }
   }
 
-  IpcHandler {
+  ShellIpc {
     target: "miseriae.gitarchy"
 
     function refresh(): void { root.broadcast("refresh") }
@@ -388,6 +381,10 @@ BarWidget {
         gitProc.running = true
       }
 
+      // A delegate added after the last poll (settings changed to add a repo)
+      // starts its own status run instead of waiting for the next tick
+      Component.onCompleted: refresh()
+
       Process {
         id: gitProc
         running: false
@@ -426,11 +423,9 @@ BarWidget {
   WidgetButton {
     id: button
     anchors.fill: parent
-    visible: root.buttonText !== ""
     bar: root.bar
     text: root.buttonText
     tooltipText: root.buttonTooltip
-    opacity: root.buttonOpacity
     horizontalMargin: 8.75
     verticalPadding: 8.75
     active: root.buttonState !== "neutral"
@@ -440,29 +435,6 @@ BarWidget {
       if (b === Qt.RightButton) root.openPrimaryLazygit()
       else if (b === Qt.MiddleButton) root.refresh()
       else root.toggle()
-    }
-  }
-
-  // Cross-fade the bar label when its text changes: dip to 60% then back to
-  // 100%, so the branch/count swap reads as a smooth transition
-  SequentialAnimation {
-    id: textFade
-    running: false
-    onRunningChanged: if (!running) root.buttonOpacity = 1.0
-
-    NumberAnimation {
-      target: root
-      property: "buttonOpacity"
-      to: 0.6
-      duration: 70
-      easing.type: Easing.OutCubic
-    }
-    NumberAnimation {
-      target: root
-      property: "buttonOpacity"
-      to: 1.0
-      duration: 70
-      easing.type: Easing.InCubic
     }
   }
 }

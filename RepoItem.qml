@@ -15,6 +15,9 @@ Column {
   property string fontFamily: Style.font.family
   property bool selected: false
   property bool ghAvailable: false
+  property bool prBusy: false
+  property bool actionBusy: false
+  property string actionError: ""
 
   signal openLazygit()
   signal fetch()
@@ -25,14 +28,17 @@ Column {
   signal openGitHub()
   signal copyBranch()
   signal openFolder()
+  signal openPrUrl()
   signal pinRepo()
   signal unpinRepo()
+  signal hovered()
 
   readonly property bool hasBranch: !!status && status.branch !== ""
   readonly property int dirtyCount: status
     ? (status.staged || 0) + (status.modified || 0) + (status.untracked || 0)
     : 0
   readonly property bool hasDivergence: status && (status.ahead || status.behind) ? true : false
+  readonly property var pr: status && status.pr ? status.pr : null
   // Omarchy normally resolves `monospace` to a Nerd Font. If a user selects a
   // plain font, it should use standard Unicode alternatives instead of missing glyphs
   // I hope so, at least (;
@@ -69,6 +75,7 @@ Column {
       // Repo icon
       Text {
         Layout.alignment: Qt.AlignVCenter
+        textFormat: Text.PlainText
         text: root.repoIcon
         color: root.hasBranch ? root.contentForeground : Qt.darker(root.contentForeground, 1.5)
         font.family: root.fontFamily
@@ -83,6 +90,9 @@ Column {
           spacing: Style.space(4)
 
           Text {
+            textFormat: Text.PlainText
+            // Bound the name so elide actually happens inside the Row
+            width: Math.min(implicitWidth, Style.space(150))
             text: root.status ? root.status.name || "" : ""
             color: root.contentForeground
             font.family: root.fontFamily
@@ -94,6 +104,7 @@ Column {
           Text {
             visible: root.status && root.status.current === true
             anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
             text: "CURRENT"
             color: Color.accent
             font.family: root.fontFamily
@@ -104,6 +115,7 @@ Column {
           Text {
             visible: root.status && root.status.pinned === true
             anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
             text: "PINNED"
             color: Qt.darker(root.contentForeground, 1.3)
             font.family: root.fontFamily
@@ -116,6 +128,8 @@ Column {
           spacing: Style.space(6)
 
           Text {
+            textFormat: Text.PlainText
+            width: Math.min(implicitWidth, Style.space(160))
             text: root.branchLabel()
             color: root.branchColor()
             font.family: root.fontFamily
@@ -125,7 +139,8 @@ Column {
 
           Text {
             visible: root.status && root.status.conflicts > 0
-            text: "!" + root.status.conflicts
+            textFormat: Text.PlainText
+            text: root.status ? "!" + root.status.conflicts : ""
             color: Color.urgent
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption
@@ -134,7 +149,8 @@ Column {
 
           Text {
             visible: root.status && root.status.operation !== ""
-            text: root.status.operation
+            textFormat: Text.PlainText
+            text: root.status && root.status.operation ? root.status.operation : ""
             color: Color.urgent
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption
@@ -147,16 +163,20 @@ Column {
 
       Text {
         Layout.alignment: Qt.AlignVCenter
+        textFormat: Text.PlainText
         text: root.countsLabel()
-        color: root.dirtyCount > 0 || (root.status && root.status.conflicts > 0)
+        // Dirty work is normal, not urgent; red is reserved for conflicts and
+        // in-progress operations, matching the bar's own tint rules
+        color: root.status && root.status.conflicts > 0
           ? Color.urgent
-          : Qt.darker(root.contentForeground, 1.5)
+          : (root.dirtyCount > 0 ? Color.accent : Qt.darker(root.contentForeground, 1.5))
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
       }
 
       Text {
         Layout.alignment: Qt.AlignVCenter
+        textFormat: Text.PlainText
         text: root.hasDivergence
           ? "↑" + status.ahead + " ↓" + status.behind
           : ""
@@ -168,7 +188,8 @@ Column {
       Text {
         visible: root.status && root.status.stash > 0
         Layout.alignment: Qt.AlignVCenter
-        text: root.stashIcon + " " + root.status.stash
+        textFormat: Text.PlainText
+        text: root.status && root.status.stash ? root.stashIcon + " " + root.status.stash : ""
         color: Qt.darker(root.contentForeground, 1.5)
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
@@ -180,9 +201,11 @@ Column {
       acceptedButtons: Qt.LeftButton | Qt.RightButton
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
+      onEntered: root.hovered()
       onDoubleClicked: root.openLazygit()
       onClicked: function(mouse) {
         if (mouse.button === Qt.RightButton) root.openLazygit()
+        else root.hovered()
       }
     }
   }
@@ -230,27 +253,30 @@ Column {
 
           PanelActionButton {
             iconText: root.fetchIcon
-            tooltipText: "Fetch"
+            tooltipText: root.actionBusy ? "Fetching…" : "Fetch"
             foreground: root.contentForeground
             fontFamily: root.fontFamily
+            enabled: !root.actionBusy
             onClicked: root.fetch()
           }
 
           PanelActionButton {
             // nf-oct-repo_pull: changes come down from the remote
             iconText: root.pullIcon
-            tooltipText: "Pull (fast-forward only)"
+            tooltipText: root.actionBusy ? "Working…" : "Pull (fast-forward only)"
             foreground: root.contentForeground
             fontFamily: root.fontFamily
+            enabled: !root.actionBusy
             onClicked: root.pull()
           }
 
           PanelActionButton {
             // nf-oct-repo_push: local changes go up to the remote
             iconText: root.pushIcon
-            tooltipText: "Push"
+            tooltipText: root.actionBusy ? "Working…" : "Push"
             foreground: root.contentForeground
             fontFamily: root.fontFamily
+            enabled: !root.actionBusy
             onClicked: root.push()
           }
 
@@ -264,7 +290,7 @@ Column {
 
           PanelActionButton {
             iconText: root.githubIcon
-            tooltipText: "Open on GitHub"
+            tooltipText: "Open remote in browser"
             foreground: root.contentForeground
             fontFamily: root.fontFamily
             onClicked: root.openGitHub()
@@ -326,8 +352,9 @@ Column {
 
           PanelActionButton {
             visible: root.ghAvailable
+            enabled: !root.prBusy
             iconText: root.prIcon
-            tooltipText: root.status && root.status.pr ? "Hide PR" : "Show PR"
+            tooltipText: root.prBusy ? "Loading PR…" : (root.pr ? "Hide PR" : "Show PR")
             foreground: root.contentForeground
             fontFamily: root.fontFamily
             onClicked: root.togglePr()
@@ -336,11 +363,32 @@ Column {
       }
 
       Text {
-        visible: root.status && root.status.pr
+        id: prText
+        visible: root.pr !== null
         width: parent.width
+        textFormat: Text.PlainText
         elide: Text.ElideRight
-        text: root.prLabel()
+        text: root.pr ? root.prLabel() : ""
         color: root.prColor()
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+
+        MouseArea {
+          anchors.fill: parent
+          enabled: root.pr && root.pr.url && root.pr.url !== ""
+          cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+          hoverEnabled: true
+          onClicked: root.openPrUrl()
+        }
+      }
+
+      Text {
+        visible: root.actionError !== ""
+        width: parent.width
+        textFormat: Text.PlainText
+        elide: Text.ElideRight
+        text: root.actionError
+        color: Color.urgent
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
       }
@@ -374,16 +422,18 @@ Column {
   }
 
   function prLabel() {
-    var pr = root.status ? root.status.pr : null
+    var pr = root.pr
     if (!pr) return ""
+    if (pr.error) return "PR unavailable"
     return "#" + pr.number + " " + pr.state
   }
 
   function prColor() {
-    var pr = root.status ? root.status.pr : null
+    var pr = root.pr
     if (!pr) return root.contentForeground
+    if (pr.error) return Qt.darker(root.contentForeground, 1.6)
     if (pr.state === "OPEN") return Color.accent
-    if (pr.state === "MERGED") return Color.urgent
+    if (pr.state === "MERGED") return root.contentForeground
     return Qt.darker(root.contentForeground, 1.4)
   }
 }
